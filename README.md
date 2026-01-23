@@ -2,8 +2,8 @@
 
 ## 실행환경
 - python 3.10.9 이상
-- posgres
-- pgadmin
+- postgres
+- pgadmin(postgres db 확인용)
 
 ## 설치
 pip install -r requirements.txt
