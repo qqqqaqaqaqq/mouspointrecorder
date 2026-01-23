@@ -1,4 +1,3 @@
-# app/servieces/macroMouse.py
 import pyautogui
 
 import time
@@ -10,8 +9,6 @@ pyautogui.FAILSAFE = True
 screen_width, screen_height = pyautogui.size()
 
 def record_mouse_path(interval=0.01, stop_event=None):
-    start_time = time.time()
-
     while True:
         if stop_event and stop_event.is_set():
             print("마우스 기록 중지")

@@ -25,6 +25,15 @@ def init_db():
                 y INTEGER NOT NULL
             )
             ''')
+        with conn.cursor() as cursor:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS macro_mouse_points (
+                id SERIAL PRIMARY KEY,
+                timestamp TIMESTAMP NOT NULL,
+                x INTEGER NOT NULL,
+                y INTEGER NOT NULL
+            )
+            ''')            
         conn.commit()
 
 engine = create_engine(

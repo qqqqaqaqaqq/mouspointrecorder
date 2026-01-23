@@ -1,18 +1,14 @@
-# app/ui/detector.py
-from app.db.session import init_db
-
 import threading
 
-from app.servieces.macroMouse import record_mouse_path
-from app.repostitories.DBController import point_insert
+from app.services.macroMouse import record_mouse_path
+from app.repostitories.DBController import macro_point_insert
 import app.core.globals as globals
 
 def main(stop_event=None):
     """Mouse 기록 메인 함수. stop_event가 설정되면 루프 종료"""
-    init_db()
-
+    
     # DB 저장 스레드 시작
-    db_thread = threading.Thread(target=point_insert, daemon=True)
+    db_thread = threading.Thread(target=macro_point_insert, daemon=True)
     db_thread.start()
 
     print("Mouse Move Start")
@@ -22,6 +18,3 @@ def main(stop_event=None):
     globals.MOUSE_QUEUE.put(None)
     db_thread.join()
     print("프로그램 종료")
-
-if __name__ == '__main__':
-    main()
