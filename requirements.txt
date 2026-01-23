@@ -1,0 +1,8 @@
+pynput
+torch
+psycopg2-binary
+SQLAlchemy
+pydantic_settings
+pyautogui
+matplotlib
+numpy
