@@ -8,6 +8,15 @@
 ## 설치
 pip install -r requirements.txt
 
+## 필수파일
+.env
+
+DB_HOST=localhost
+DB_USER==****
+DB_PASSWORD=****
+DB_NAME==****
+DB_PORT==****
+
 ## 실행 법
 python -m ui
 
@@ -15,4 +24,3 @@ python -m ui
 마우스 위치 기록<br>
 마우스 위치 기록 스탑<br>
 plot으로 확인<br>
-
