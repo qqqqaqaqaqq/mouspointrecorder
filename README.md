@@ -139,3 +139,4 @@ inference 실행후 Macro Move 누르면 싫행됨 => q를 눌러 나갈떄 ui�
 - 출력에 대한 결과값은 app.ui.inference에 있사오니 외부와 연결 하실 때 참고 부탁드립니다.
 
 # 실행 영상
+[실행 영상 보기](https://youtu.be/Z6v6g7pz85k)
