@@ -138,5 +138,7 @@ inference 실행후 Macro Move 누르면 싫행됨 => q를 눌러 나갈떄 ui�
 - Feacture에 대한 값은 app.core.globals 와  app.services.indicator에 있사오니 해당 부분을 수정하시어 더 좋은 피쳐로 학습시켜 보세요.
 - 출력에 대한 결과값은 app.ui.inference에 있사오니 외부와 연결 하실 때 참고 부탁드립니다.
 
+# 반드시 postgres가 설치되어있어야 하며, .env 파일이 주어진 형식에 맞게 설정되어 있어야합니다.
+
 # 실행 영상
 [![실행 영상](https://img.youtube.com/vi/Z6v6g7pz85k/0.jpg)](https://youtu.be/Z6v6g7pz85k)
