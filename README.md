@@ -33,7 +33,7 @@ click main.exe
 ---
 
 # UI
-![메인 UI](./public/main_ui.png)
+<img src="./public/main_ui.png" alt="메인 UI" width="600">
 <br>
 
 - Recording : Exit Key : q
