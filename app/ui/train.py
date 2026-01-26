@@ -1,105 +1,76 @@
-# app/train/mouse_lstm_feature_train_val.py
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import DataLoader
+import pandas as pd
+import traceback
+import time
 
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+import app.core.globals as globals
+
+from sklearn.preprocessing import StandardScaler
+
+# 모델
 from app.models.MousePoint import MousePoint, MacroMousePoint
 from app.models.DenseLstm import DenseLSTMModel
+from app.models.CnnDenseLstm import CnnDenseLstm
+from app.models.MouseFeatureDataset import MouseFeatureDataset
+
 from app.repostitories.DBController import read
+from app.services.indicators import indicators_generation
 
 save_path = "app/models/weights/mouse_macro_lstm_best.pt"
 
-# 논리
-# gpt 피셜 좌표값 기준으로 하면 fuck 된다.
-# 그러니 feacture를 생성해서 해라
-# ㅇㅋ 하고 바꿈 시불련 ㅈㄴ 똑똑해.
-def points_to_features_minmax(points: list[MousePoint], seq_len=15):
-    if len(points) < 2:
-        return np.empty((0, seq_len, 6), dtype=np.float32)
+# stride = > seq 데이터 겹치는 양 (How much each sequence shifts forward)
+def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ_LEN, val_df: pd.DataFrame = None, stride: int = globals.STRIDE):
+    def df_to_seq(df: pd.DataFrame):
+        try:
+            X = []
+            n_rows = len(df)
 
-    # 좌표 min-max
-    x_values = [p.x for p in points]
-    y_values = [p.y for p in points]
-    x_min, x_max = min(x_values), max(x_values)
-    y_min, y_max = min(y_values), max(y_values)
+            for i in range(0, n_rows - seq_len + 1, stride):
+                seq = df.iloc[i:i + seq_len][globals.FEACTURE].values
+                scaler = StandardScaler()
+                seq_scaled = scaler.fit_transform(seq)  # 시퀀스 단위 스케일링
+                X.append(seq_scaled)
 
-    data = []
-    prev = points[0]
-    prev_speed = 0.0
+            if len(X) == 0:
+                return np.empty((0, seq_len, len(globals.FEACTURE)), dtype=np.float32)
+            return np.asarray(X, dtype=np.float32)
+        except Exception as e:
+            print("Error occurred in df_to_seq:")
+            print(e)                   # 에러 메시지
+            traceback.print_exc()      # 전체 traceback 출력
+            return np.empty((0, seq_len, len(globals.FEACTURE)), dtype=np.float32)
 
-    for p in points[1:]:
-        dt = (p.timestamp - prev.timestamp).total_seconds()
-        dx = (p.x - prev.x) / (x_max - x_min + 1e-6)
-        dy = (p.y - prev.y) / (y_max - y_min + 1e-6)
-        speed = np.sqrt(dx**2 + dy**2) / (dt + 1e-6)
-        acc = speed - prev_speed
-        angle = np.arctan2(dy, dx)
+    X_train = df_to_seq(train_df)
+    X_val = df_to_seq(val_df) if val_df is not None else None
 
-        data.append([dt, dx, dy, speed, acc, angle])
+    return X_train, X_val
 
-        prev = p
-        prev_speed = speed
-
-    data = np.array(data, dtype=np.float32)
-
-    # 시퀀스로 변환
-    sequences = []
-    for i in range(len(data) - seq_len):
-        sequences.append(data[i:i + seq_len])
-
-    return np.array(sequences, dtype=np.float32)
-
-class MouseFeatureDataset(Dataset):
-    def __init__(self, sequences, labels):
-        self.sequences = torch.tensor(sequences, dtype=torch.float32)
-        self.labels = torch.tensor(labels, dtype=torch.float32).unsqueeze(1)
-
-    def __len__(self):
-        return len(self.sequences)
-
-    def __getitem__(self, idx):
-        return self.sequences[idx], self.labels[idx]
-
-def main(stop_event=None, seq_len=100, batch_size=32, epochs=20, lr=0.0005, device=None, val_ratio=0.2):
-    device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
-
-    # DB에서 데이터 읽기 (각 클래스 1500개)
-    user_points: list[MousePoint] = read(True)[:1500]
-    macro_points: list[MacroMousePoint] = read(False)[:1500]
-
-    if len(user_points) < seq_len or len(macro_points) < seq_len:
-        print("데이터가 충분하지 않습니다.")
-        return
-
-    # 시퀀스 변환
-    user_seq = points_to_features_minmax(user_points, seq_len)
-    macro_seq = points_to_features_minmax(macro_points, seq_len)
-
-    # 입력과 라벨
-    X = np.concatenate([user_seq, macro_seq], axis=0)
-    y = np.concatenate([np.ones(len(user_seq)), np.zeros(len(macro_seq))], axis=0)
-
-    print(f"총 시퀀스 수: {len(X)}, 입력 shape: {X.shape}")
-
-    # Dataset / Train-Val Split
-    dataset = MouseFeatureDataset(X, y)
-    val_size = int(len(dataset) * val_ratio)
-    train_size = len(dataset) - val_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-
+def train_start(train_dataset, val_dataset, batch_size=32, epochs=50, lr=0.0005, device=None, stop_event=None, patience=10):
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    val_loader   = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    # 모델 초기화 (Dropout 적용)
-    model = DenseLSTMModel(input_size=6, hidden_size=128, num_layers=3, dropout=0.3).to(device)
+    
+    # 모델 초기화
+    model = CnnDenseLstm(
+        input_size=len(globals.FEACTURE), 
+        lstm_hidden_size=128, 
+        lstm_layers=3, 
+        dropout=0.3
+    ).to(device)
+    
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     best_val_loss = float('inf')
+    epochs_no_improve = 0  # 개선 없는 epoch 수
 
-    # 학습
     for epoch in range(epochs):
         if stop_event and stop_event.is_set():
             print("학습 중지 이벤트 발생")
@@ -130,12 +101,100 @@ def main(stop_event=None, seq_len=100, batch_size=32, epochs=20, lr=0.0005, devi
                 val_loss += loss.item() * batch_x.size(0)
         avg_val_loss = val_loss / len(val_dataset)
 
-        # ===== Best 모델 저장 =====
+        # Best 모델 저장 및 Early Stopping 체크
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
+            epochs_no_improve = 0  # 초기화
             torch.save(model.state_dict(), save_path)
             print(f"[Model Saved] Epoch {epoch+1}, Val Loss: {avg_val_loss:.6f}")
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= patience:
+                print(f"Val loss 개선 없음 {patience} epoch. 학습 중지 이벤트 발생")
+                if stop_event:
+                    stop_event.set()
+                break
 
         print(f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}")
 
     print(f"최종 Best Val Loss: {best_val_loss:.6f}, 모델 저장 위치: {save_path}")
+
+def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None):
+    device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+
+    print("setting")
+    print(f"device : {device}")    
+    print(f"SEQ_LEN : {globals.SEQ_LEN}")
+    print(f"STRIDE : {globals.STRIDE}")
+
+    # ===== 데이터 읽기 =====
+    user_all: list[MousePoint] = read(True)
+    macro_all: list[MacroMousePoint] = read(False)
+
+    n = min(len(user_all), len(macro_all))
+    user_points = user_all[:n]
+    macro_points = macro_all[:n]
+
+    user_df_chunk = pd.DataFrame({
+        "timestamp": [p.timestamp for p in user_points],
+        "x": [p.x for p in user_points],
+        "y": [p.y for p in user_points],
+    })
+    macro_df_chunk = pd.DataFrame({
+        "timestamp": [p.timestamp for p in macro_points],
+        "x": [p.x for p in macro_points],
+        "y": [p.y for p in macro_points],
+    })
+
+
+    # ===== Feature 계산 =====
+    setting_user_df_chunk: pd.DataFrame = indicators_generation(user_df_chunk)
+    setting_macro_df_chunk: pd.DataFrame = indicators_generation(macro_df_chunk)
+    
+    setting_user_df_chunk = setting_user_df_chunk.sort_values('timestamp').reset_index(drop=True)
+    setting_macro_df_chunk = setting_macro_df_chunk.sort_values('timestamp').reset_index(drop=True)
+
+    # ===== Feature 필터 =====
+    setting_user_df_chunk = setting_user_df_chunk[globals.FEACTURE].copy()
+    setting_macro_df_chunk = setting_macro_df_chunk[globals.FEACTURE].copy()
+
+
+    if len(user_points) < seq_len or len(macro_points) < seq_len:
+        print("데이터가 충분하지 않습니다.")
+        return
+
+    # ===== Train/Val split =====
+    user_train_df, user_val_df = train_test_split(setting_user_df_chunk, test_size=0.2, shuffle=False)
+    macro_train_df, macro_val_df = train_test_split(setting_macro_df_chunk, test_size=0.2, shuffle=False)
+
+    # ===== Sequence =====
+    user_train_seq, user_val_seq = points_to_features_scaled(train_df=user_train_df, val_df=user_val_df, seq_len=globals.SEQ_LEN, stride=globals.STRIDE)
+    macro_train_seq, macro_val_seq = points_to_features_scaled(train_df=macro_train_df, val_df=macro_val_df, seq_len=globals.SEQ_LEN, stride=globals.STRIDE)
+
+    # ===== 입력 + 라벨 결합 =====
+    X_train = np.concatenate([user_train_seq, macro_train_seq], axis=0)
+    y_train = np.concatenate([
+        np.ones(len(user_train_seq)),
+        np.zeros(len(macro_train_seq))
+    ])
+
+    X_val = np.concatenate([user_val_seq, macro_val_seq], axis=0)
+    y_val = np.concatenate([
+        np.ones(len(user_val_seq)),
+        np.zeros(len(macro_val_seq))
+    ])
+
+    # ===== Dataset 생성 =====
+    train_dataset = MouseFeatureDataset(X_train, y_train)
+    val_dataset   = MouseFeatureDataset(X_val, y_val)
+
+    print(f"Train seq: {len(X_train)}, Val seq: {len(X_val)}")
+    print(f"Input shape: {X_train.shape}")
+
+    # ===== 학습 시작 =====
+    train_start(
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        device=device,
+        stop_event=stop_event
+    )

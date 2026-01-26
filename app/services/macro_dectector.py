@@ -2,87 +2,77 @@ import torch
 import numpy as np
 from collections import deque
 from datetime import datetime
+import joblib
 
+from sklearn.preprocessing import StandardScaler
 from app.models.DenseLstm import DenseLSTMModel
+from app.models.CnnDenseLstm import CnnDenseLstm
+from sklearn.preprocessing import StandardScaler
+
+from app.ui.train import points_to_features_scaled
+
+from app.services.indicators import indicators_generation
+
+import pandas as pd
+import app.core.globals as globals
+import app.ui.train as train
 
 class MacroDetector:
-    def __init__(
-        self,
-        model_path: str,
-        seq_len=15,
-        threshold=0.8,
-        device=None
-    ):
+    def __init__(self, model_path: str, seq_len=globals.SEQ_LEN, threshold=0.8, device=None):
         self.seq_len = seq_len
         self.threshold = threshold
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-
-        # 모델 로드
-        self.model = DenseLSTMModel(
-            input_size=6,
-            hidden_size=128,
-            num_layers=3,
+        # ===== 모델 초기화 =====
+        self.model = CnnDenseLstm(
+            input_size=len(globals.FEACTURE), 
+            lstm_hidden_size=128, 
+            lstm_layers=3, 
             dropout=0.3
-        ).to(self.device)
-
-        self.model.load_state_dict(
-            torch.load(model_path, map_location=self.device)
         )
+
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        self.model.to(self.device)
         self.model.eval()
 
-        # 최근 좌표 버퍼
-        self.buffer = deque(maxlen=seq_len + 1)
+        # ===== 좌표 buffer =====
+        self.buffer = deque(maxlen=seq_len * 3)
         self.prev_speed = 0.0
 
+
     def push(self, x: int, y: int, timestamp: datetime):
-        """좌표 하나 넣고, 판단 가능하면 결과 반환"""
         self.buffer.append((x, y, timestamp))
 
-        if len(self.buffer) < self.seq_len + 1:
+        if len(self.buffer) < self.seq_len * 3:
             return None
-
+        
         return self._infer()
 
     def _infer(self):
-        features = []
-
         xs = [p[0] for p in self.buffer]
         ys = [p[1] for p in self.buffer]
+        ts = [p[2] for p in self.buffer]  # datetime 그대로
 
-        x_min, x_max = min(xs), max(xs)
-        y_min, y_max = min(ys), max(ys)
+        df:pd.DataFrame = pd.DataFrame({"timestamp": ts, "x": xs, "y": ys})
+        df = indicators_generation(df)
 
-        prev_x, prev_y, prev_t = self.buffer[0]
-        prev_speed = self.prev_speed
+        df = df.sort_values('timestamp').reset_index(drop=True)
 
-        for x, y, t in list(self.buffer)[1:]:
-            dt = (t - prev_t).total_seconds()
-            if dt <= 0:
-                dt = 1e-6
+        df = df[globals.FEACTURE].copy()
+        
+        # ===== Feature 필터 =====
+        
+        X_infer, _ = points_to_features_scaled(train_df=df, seq_len=globals.SEQ_LEN, stride=globals.STRIDE)
 
-            dx = (x - prev_x) / (x_max - x_min + 1e-6)
-            dy = (y - prev_y) / (y_max - y_min + 1e-6)
+        
+        if X_infer.size == 0:  # 배열 비었으면 None 반환
+            return None
 
-            speed = np.sqrt(dx**2 + dy**2) / dt
-            acc = speed - prev_speed
-            angle = np.arctan2(dy, dx)
-
-            features.append([dt, dx, dy, speed, acc, angle])
-
-            prev_x, prev_y, prev_t = x, y, t
-            prev_speed = speed
-
-        self.prev_speed = prev_speed
-
-        x_tensor = torch.tensor(
-            np.array(features, dtype=np.float32)
-        ).unsqueeze(0).to(self.device)
+        # 마지막 시퀀스만 사용
+        X_tensor = torch.tensor(X_infer[-1], dtype=torch.float32).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            logit = self.model(x_tensor)
-            prob = torch.sigmoid(logit).item()
+            pred = self.model(X_tensor)
+            prob = torch.sigmoid(pred).squeeze().item()  # 0~1
 
-        return {
-            "prob": prob,
-            "is_macro": prob >= self.threshold
-        }
+        return {"is_macro": prob < self.threshold, "prob": prob}
+

@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
     
+    SEQ_LEN : int = 300
+    STRIDE : int = 50
+    
     @property
     def DATABASE_URL(self) -> str:
         return (
