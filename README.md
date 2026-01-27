@@ -13,10 +13,12 @@
 pip install -r requirements.txt
 
 ## 필수파일
-.env
+.env 
+
+파일 내용
 
 DB_HOST=localhost<br>
-DB_USER==****<br>
+DB_USER=****<br>
 DB_PASSWORD=****<br>
 DB_NAME=****<br>
 DB_PORT=****<br>
