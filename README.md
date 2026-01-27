@@ -3,12 +3,12 @@
 ## Model : DENSE +  LSTM + CNN module 복합 구조
 
 ---
+
 # Version 1.0.3 Update
 - 마우스 포인터 기록 이어쓰기로 변경
 - print -> log 창으로 이동
 
 # Version 1.0.2 Update
-
 - Postgres - Json 스위칭 가능
 - Json 실행시 postgres 설치 필요 없음.
 
@@ -28,20 +28,35 @@ DB_PORT=****<br>
 해당 부분은 유지 => 값은 없어도 문제없습니다. 처음 불러올때 env 파일내 key부터 찾아서 key가 하나라도없으면 error가 걸립니다.
 전체 내용은 ## 필수 파일 .env 확인
 
-- json으로 기록 시 data 양이 방대하면 지연이 길어지므로 3~5만 이내 데이터만 추천드립니다.
-- process 충돌로 인한 오류 수정
-- 단 json 파일은 추가가 아니라 덮어씌워지니 기록 클릭 시 주의해주세요
+json으로 기록 시 data 양이 방대하면 지연이 길어지므로 3~5만 이내 데이터만 추천드립니다. => 15만 까지 무리없는 걸로 확인 <br>
+process 충돌로 인한 오류 수정 <br>
+~~단 json 파일은 추가가 아니라 덮어씌워지니 기록 클릭 시 주의해주세요~~ 이어쓰기로 수정
 
-- User Macro도 저장되도록 버튼 추가 (User Macro Record)
-- UI 깔끔하게 변경
+User Macro도 저장되도록 버튼 추가 (User Macro Record)
+UI 일부 변경
+
+---
+
+# 현재 버그
+~~inference 실행후 Macro Move 누르면 싫행됨 => q를 눌러 나갈떄 ui가 튕기지는 않는데 Macro Move의 프로세스가 문제 생김~~
+~~프로세스 종료 버튼 누른 후 에는 정상적으로 실행 됨~~
+~~원인은 프로세스 충돌로 예상되나 고치는데 시간이 걸리 것으로 예상됨.~~
+~~그 이외에는 모두 잘 되며 해당 버그도 프로세스 오류 경고 종료 버튼 누르기만 하면 이후 기능에 영향을 끼치는 것이 아니므로 큰 문제는 없습니다.~~<br>
+수정
+
+~~Json Indicator timestamp 버그, macroMouse user_macro if문 버그~~<br>
+repair 완료
+
+---
 
 ## 실행환경
 - python 3.10.9 이상
-- postgres
-- pgadmin(postgres db 확인용)
+- window
 
 ## 설치
-pip install -r requirements.txt
+pip install -r requirements.txt<br>
+postgres<br>
+pgadmin(postgres db 확인용)
 
 ## 필수파일
 .env 
@@ -155,16 +170,6 @@ Y = [1, 0]
 - DataBase Clear : Reset Table
 
 ---
-
-# 현재 버그
-~~inference 실행후 Macro Move 누르면 싫행됨 => q를 눌러 나갈떄 ui가 튕기지는 않는데 Macro Move의 프로세스가 문제 생김~~
-~~프로세스 종료 버튼 누른 후 에는 정상적으로 실행 됨~~
-~~원인은 프로세스 충돌로 예상되나 고치는데 시간이 걸리 것으로 예상됨.~~
-~~그 이외에는 모두 잘 되며 해당 버그도 프로세스 오류 경고 종료 버튼 누르기만 하면 이후 기능에 영향을 끼치는 것이 아니므로 큰 문제는 없습니다.~~<br>
-수정
-
-~~Json Indicator timestamp 버그, macroMouse user_macro if문 버그~~<br>
-repair 완료
 
 # 제작자
 - 해당 프로그램은 마우스 위치 좌표 매크로를 사용하는 유저들을 탐지 하는 모델 입니다.
