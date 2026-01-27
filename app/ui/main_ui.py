@@ -13,7 +13,9 @@ import app.ui.inferece as inference
 import app.core.globals as globals
 
 from app.ui.plot import plot_main
-from app.repostitories.DBController import point_clear, read, macro_point_clear
+import app.repostitories.DBController as DBController
+import app.repostitories.JsonController as JsonController
+
 from app.services.macroMouse import record_mouse_path
 
 import app.services.userMouse as useMouse
@@ -277,7 +279,11 @@ class MouseMacroUI(tk.Tk):
 
     # ================= Logic =================
     def make_plot_in_process(self, user=False):
-        points = read(user)
+        if globals.Recorder == "postgres":
+            points = DBController.read(user)
+        elif globals.Recorder == 'json':
+            points = JsonController.read(user)
+
         p = Process(target=plot_main, args=(points,))
         p.start()
 
@@ -344,13 +350,19 @@ class MouseMacroUI(tk.Tk):
     def clear_db(self):
         result = messagebox.askyesno("확인", "Mouse DB를 초기화하시겠습니까?")
         if result:
-            point_clear()
-            print("Mouse DB 초기화")
-            messagebox.showinfo("완료", "초기화가 완료되었습니다.")
-
+            if globals.Recorder == "postgres":
+                DBController.point_clear()
+                print("Mouse DB 초기화")
+                messagebox.showinfo("완료", "초기화가 완료되었습니다.")
+            else:
+                messagebox.showinfo("파일을 직접 지워주세요.")
+            
     def macro_clear_db(self):
         result = messagebox.askyesno("확인", "Macro DB를 초기화하시겠습니까?")
         if result:        
-            macro_point_clear()
-            print("Macro DB 초기화")
-            messagebox.showinfo("완료", "초기화가 완료되었습니다.")
+            if globals.Recorder == "postgres":            
+                DBController.macro_point_clear()
+                print("Macro DB 초기화")
+                messagebox.showinfo("완료", "초기화가 완료되었습니다.")
+            else:
+                messagebox.showinfo("파일을 직접 지워주세요.")                
