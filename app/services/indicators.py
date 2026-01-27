@@ -2,12 +2,14 @@ import pandas as pd
 import numpy as np
 
 def indicators_generation(df_chunk: pd.DataFrame) -> pd.DataFrame:
-    df = df_chunk.copy()
+    df:pd.DataFrame = df_chunk.copy()
 
     # 시간 정렬
-    df = df.sort_values("timestamp").reset_index(drop=True)
+    if not np.issubdtype(df["timestamp"].dtype, np.datetime64):
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
     # 시간 차 (초)
+    df["timestamp"] = pd.to_datetime(df["timestamp"]) 
     df["dt"] = df["timestamp"].diff().dt.total_seconds()
     df.loc[df["dt"] <= 0, "dt"] = np.nan
 

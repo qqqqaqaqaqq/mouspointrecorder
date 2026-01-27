@@ -303,7 +303,7 @@ class MouseMacroUI(tk.Tk):
                 print("Mouse DB 초기화")
                 messagebox.showinfo("완료", "초기화가 완료되었습니다.")
             else:
-                messagebox.showinfo("파일을 직접 지워주세요.")
+                messagebox.showinfo("경고", "Json 파일을 직접 지워주세요.")
             
     def macro_clear_db(self):
         result = messagebox.askyesno("확인", "Macro DB를 초기화하시겠습니까?")
@@ -313,4 +313,4 @@ class MouseMacroUI(tk.Tk):
                 print("Macro DB 초기화")
                 messagebox.showinfo("완료", "초기화가 완료되었습니다.")
             else:
-                messagebox.showinfo("파일을 직접 지워주세요.")                
+                messagebox.showinfo("경고", "Json 파일을 직접 지워주세요.")

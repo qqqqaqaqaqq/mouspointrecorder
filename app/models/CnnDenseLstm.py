@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+# 시퀀스 간의 학습x
+# 시퀀스 내의 학습o
 class CnnDenseLstm(nn.Module):
     def __init__(self, input_size=3, cnn_channels=[32, 64], cnn_kernel_sizes=[3, 3],
                  lstm_hidden_size=128, lstm_layers=2, output_size=1, dropout=0.3):

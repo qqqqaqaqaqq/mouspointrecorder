@@ -29,6 +29,8 @@ save_path = "app/models/weights/mouse_macro_lstm_best.pt"
 
 # stride = > seq 데이터 겹치는 양 (How much each sequence shifts forward)
 def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ_LEN, val_df: pd.DataFrame = None, stride: int = globals.STRIDE):
+
+    # 시퀀스내의 스탭들이 모드 동일할 때 제거 => 움직임이 없을 경우 제외
     def df_to_seq(df: pd.DataFrame):
         try:
             X = []
@@ -36,6 +38,11 @@ def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ
 
             for i in range(0, n_rows - seq_len + 1, stride):
                 seq = df.iloc[i:i + seq_len][globals.FEACTURE].values
+
+                # 시퀀스가 모두 동일하면 제외
+                if np.all(seq == seq[0]):
+                    continue
+
                 scaler = StandardScaler()
                 seq_scaled = scaler.fit_transform(seq)  # 시퀀스 단위 스케일링
                 X.append(seq_scaled)
@@ -45,8 +52,8 @@ def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ
             return np.asarray(X, dtype=np.float32)
         except Exception as e:
             print("Error occurred in df_to_seq:")
-            print(e)                   # 에러 메시지
-            traceback.print_exc()      # 전체 traceback 출력
+            print(e)                   
+            traceback.print_exc()      
             return np.empty((0, seq_len, len(globals.FEACTURE)), dtype=np.float32)
 
     X_train = df_to_seq(train_df)
