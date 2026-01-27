@@ -4,7 +4,7 @@
 
 ---
 
-# Version 1.0.1 Update
+# Version 1.0.2 Update
 - Postgres - Json 스위칭 가능
 - Json 실행시 postgres 설치 필요 없음.
 
@@ -26,6 +26,9 @@ DB_PORT=****<br>
 
 - json으로 기록 시 data 양이 방대하면 지연이 길어지므로 3~5만 이내 데이터만 추천드립니다.
 - process 충돌로 인한 오류 수정
+
+- User Macro도 저장되도록 버튼 추가 (User Macro Record)
+- UI 깔끔하게 변경
 
 ## 실행환경
 - python 3.10.9 이상
