@@ -15,13 +15,13 @@ pip install -r requirements.txt
 ## 필수파일
 .env
 
-DB_HOST=localhost
-DB_USER==****
-DB_PASSWORD=****
-DB_NAME==****
-DB_PORT==****
+DB_HOST=localhost<br>
+DB_USER==****<br>
+DB_PASSWORD=****<br>
+DB_NAME==****<br>
+DB_PORT==****<br>
 
-SEQ_LEN : 300
+SEQ_LEN : 300<br>
 STRIDE : 100
 
 ## 실행
