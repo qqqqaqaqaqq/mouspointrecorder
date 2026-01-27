@@ -8,7 +8,7 @@
 - Postgres - Json 스위칭 가능
 - Json 실행시 postgres 설치 필요 없음.
 
-- env 파일 내 
+- env 파일 내<br>
 JsonPath=./<br>
 Recorder=json<br>
 추가 Recorder 기록 장소 json, postgres 또는 ui 내 토글 버튼으로 스위칭
