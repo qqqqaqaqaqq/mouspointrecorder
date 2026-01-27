@@ -11,7 +11,18 @@
 - env 파일 내<br>
 JsonPath=./<br>
 Recorder=json<br>
-추가 Recorder 기록 장소 json, postgres 또는 ui 내 토글 버튼으로 스위칭
+추가 Recorder 기록 장소 json, postgres 또는 ui 내 토글 버튼으로 스위칭<br>
+
+! 단 기존 env 파일 내<br>
+
+DB_HOST=localhost<br>
+DB_USER=****<br>
+DB_PASSWORD=****<br>
+DB_NAME=****<br>
+DB_PORT=****<br>
+
+해당 부분은 유지 => 값은 없어도 문제없습니다. 처음 불러올때 env 파일내 key부터 찾아서 key가 하나라도없으면 error가 걸립니다.
+전체 내용은 ## 필수 파일 .env 확인
 
 - json으로 기록 시 data 양이 방대하면 지연이 길어지므로 3~5만 이내 데이터만 추천드립니다.
 - process 충돌로 인한 오류 수정
@@ -29,11 +40,11 @@ pip install -r requirements.txt
 
 파일 내용
 
-DB_HOST=localhost<br>
-DB_USER=****<br>
-DB_PASSWORD=****<br>
-DB_NAME=****<br>
-DB_PORT=****<br>
+DB_HOST= type : str<br>
+DB_USER= type : str<br>
+DB_PASSWORD= tpye : str<br>
+DB_NAME= type : str<br>
+DB_PORT= type : int<br>
 
 JsonPath=./<br>
 Recorder=json<br>
