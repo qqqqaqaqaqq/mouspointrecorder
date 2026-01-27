@@ -1,7 +1,7 @@
 import app.core.globals as globals
+from multiprocessing import Queue
 
-
-def read(user: bool):
+def read(user: bool, log_queue:Queue):
     import os, json
 
     json_dir = globals.JsonPath
@@ -24,6 +24,7 @@ def read(user: bool):
 
         return data
 
-    except Exception as e:
-        print("[JSON 읽기 오류]:", e)
+    except Exception as e: 
+        if log_queue:
+            log_queue.put(f"[JSON 읽기 오류]: {e}")
         return []

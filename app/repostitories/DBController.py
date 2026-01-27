@@ -5,8 +5,9 @@ from app.db.session import SessionLocal
 from sqlalchemy import text
 from app.models.MousePoint import MousePoint, MacroMousePoint
 import app.core.globals as globals
+from multiprocessing import Queue
 
-def point_insert():
+def point_insert(log_queue:Queue=None):
     db = SessionLocal()
 
     while True:
@@ -24,9 +25,10 @@ def point_insert():
             db.commit()
         except Exception as e:
             db.rollback()
-            print("DB 저장 오류:", e)
+            if log_queue:
+                log_queue.put(f"DB 저장 오류 : {e}")
 
-def macro_point_insert():
+def macro_point_insert(log_queue:Queue=None):
     db = SessionLocal()
 
     while True:
@@ -44,10 +46,11 @@ def macro_point_insert():
             db.commit()
         except Exception as e:
             db.rollback()
-            print("DB 저장 오류:", e)
+            if log_queue:
+                log_queue.put(f"DB 저장 오류 : {e}")
 
 
-def point_clear():
+def point_clear(log_queue:Queue=None):
     db = SessionLocal()
     try:
         db.query(MousePoint).delete()
@@ -56,15 +59,17 @@ def point_clear():
         db.execute(text("TRUNCATE TABLE public.mouse_points RESTART IDENTITY;"))
         db.commit()
 
-        print("MousePoint 테이블 초기화 완료")
+        if log_queue:
+            log_queue.put("MousePoint 테이블 초기화 완료")
     except Exception as e:
         db.rollback()
-        print("테이블 초기화 오류:", e)
+        if log_queue:
+            log_queue.put(f"테이블 초기화 오류: {e}")
     finally:
         db.close()
 
 
-def macro_point_clear():
+def macro_point_clear(log_queue:Queue=None):
     db = SessionLocal()
     try:
         db.query(MacroMousePoint).delete()
@@ -73,14 +78,16 @@ def macro_point_clear():
         db.execute(text("TRUNCATE TABLE public.macro_mouse_points RESTART IDENTITY;"))
         db.commit()
 
-        print("MacroMousePoint 테이블 초기화 완료")
+        if log_queue:
+            log_queue.put("MacroMousePoint 테이블 초기화 완료")
     except Exception as e:
         db.rollback()
-        print("테이블 초기화 오류:", e)
+        if log_queue:
+            log_queue.put(f"테이블 초기화 오류: {e}")
     finally:
         db.close()
 
-def read(user):
+def read(user, log_queue:Queue=None):
     db = SessionLocal()
     try:
         if user:
@@ -90,7 +97,8 @@ def read(user):
             
         return point
     except Exception as e:
-        print("DB 읽기 오류:", e)
+        if log_queue:
+            log_queue.put(f"DB 읽기 오류: {e}")
         return []
     finally:
         db.close()

@@ -13,6 +13,7 @@ import app.repostitories.DBController as DBController
 import app.repostitories.JsonController as JsonController
 from app.services.macroMouse import record_mouse_path
 import app.services.userMouse as useMouse
+from app.core.logger import add_macro_log
 
 def restart_program():
     response = messagebox.askyesno("재시작 알림", "프로그램을 재시작합니다.")
@@ -33,7 +34,14 @@ class MouseMacroUI(tk.Tk):
         self.stop_move_event = Event()
         keyboard.add_hotkey('ctrl+shift+q', lambda: self.stop_move_event.set())    
         self.init_ui()
+        
+        self.after(100, self.process_macro_logs)
 
+    def process_macro_logs(self):
+        while not globals.LOG_QUEUE.empty():
+            add_macro_log(globals.LOG_QUEUE.get())
+        self.after(100, self.process_macro_logs)
+        
     # ================= UI Helpers =================
     def create_section(self, parent, title, bg="#2A2B30", fg="#E0E0E0"):
         frame = tk.Frame(parent, bg=bg, padx=15, pady=15, bd=0, relief="flat")
@@ -138,7 +146,7 @@ class MouseMacroUI(tk.Tk):
 
         self.update_macro_detector()
 
-        footer = tk.Label(self, text="v1.1 - Mouse Macro Tool, Created by qqqa", font=("Helvetica", 10, "italic"),
+        footer = tk.Label(self, text="v1.0.3 - Mouse Macro Tool, Created by qqqa", font=("Helvetica", 10, "italic"),
                           bg="#1F2024", fg="#A0A0A0")
         footer.pack(side="bottom", pady=10)
 
@@ -160,7 +168,7 @@ class MouseMacroUI(tk.Tk):
         else:
             globals.Recorder = "json"
         
-        print(f"[INFO] 저장 타입 변경: {globals.Recorder}")
+        globals.LOG_QUEUE.put(f"[INFO] 저장 타입 변경: {globals.Recorder}")
         
         # 버튼 텍스트 업데이트
         if hasattr(self, "toggle_btn"):
@@ -182,8 +190,8 @@ class MouseMacroUI(tk.Tk):
             for key, val in env_dict.items():
                 f.write(f"{key}={val}\n")
 
-        print(f"[INFO] .env 파일 업데이트 완료: Recorder={globals.Recorder}")
-        print(f"3초후 프로그램이 재부팅 됩니다.")
+        globals.LOG_QUEUE.put(f"[INFO] .env 파일 업데이트 완료: Recorder={globals.Recorder}")
+        globals.LOG_QUEUE.put(f"3초후 프로그램이 재부팅 됩니다.")
         time.sleep(3)
         restart_program()
 
@@ -197,7 +205,7 @@ class MouseMacroUI(tk.Tk):
             # globals 값 변경
             globals.SEQ_LEN = seq_val
             globals.STRIDE = stride_val
-            print(f"[INFO] globals.SEQ_LEN = {globals.SEQ_LEN}, globals.STRIDE = {globals.STRIDE}")
+            globals.LOG_QUEUE.put(f"[INFO] globals.SEQ_LEN = {globals.SEQ_LEN}, globals.STRIDE = {globals.STRIDE}")
 
             # env 파일 경로 (프로젝트 root 기준)
             env_path = ".env"
@@ -220,47 +228,85 @@ class MouseMacroUI(tk.Tk):
                 for key, val in env_dict.items():
                     f.write(f"{key}={val}\n")
 
-            print(f"[INFO] .env 파일 업데이트 완료: SEQ_LEN={seq_val}, STRIDE={stride_val}")
+            globals.LOG_QUEUE.put(f"[INFO] .env 파일 업데이트 완료: SEQ_LEN={seq_val}, STRIDE={stride_val}")
 
         except ValueError:
-            print("[ERROR] 올바른 정수를 입력하세요")
+            globals.LOG_QUEUE.put("[ERROR] 올바른 정수를 입력하세요")
 
     # ================= Logic =================
     def make_plot_in_process(self, user=False):
         if globals.Recorder == "postgres":
-            points = DBController.read(user)
+            points = DBController.read(user, log_queue=globals.LOG_QUEUE)
         elif globals.Recorder == 'json':
-            points = JsonController.read(user)
+            points = JsonController.read(user, log_queue=globals.LOG_QUEUE)
 
-        p = Process(target=plot_main, args=(points,))
+        p = Process(
+            target=plot_main, 
+            kwargs={
+                "points" : points,
+                "log_queue": globals.LOG_QUEUE, 
+                }
+            )
         p.start()
 
     def start_macro_record_move_false(self, move=False, user_macro=False, record=True):
         result = messagebox.askyesno("확인", "매크로 기록 무브=False 시작하시겠습니까?")
         if result:
             self.stop_move_event.clear()
-            p = Process(target=record_mouse_path, kwargs={"move_mouse": move, "record": record, "user_macro":user_macro, "stop_event": self.stop_move_event})
+            p = Process(
+                target=record_mouse_path, 
+                kwargs={
+                    "move_mouse": move, 
+                    "log_queue": globals.LOG_QUEUE, 
+                    "record": record, 
+                    "user_macro":user_macro, 
+                    "stop_event": self.stop_move_event
+                    }
+                )
             p.start()
 
     def start_macro_record_move_true(self, move=True, record=True):
         result = messagebox.askyesno("확인", "매크로 기록 무브=True 시작하시겠습니까?")
         if result:
             self.stop_move_event.clear()            
-            p = Process(target=record_mouse_path, kwargs={"move_mouse": move, "record": record, "stop_event": self.stop_move_event})
+            p = Process(
+                target=record_mouse_path, 
+                kwargs={
+                    "move_mouse": move, 
+                    "log_queue": globals.LOG_QUEUE, 
+                    "record": record, 
+                    "stop_event": self.stop_move_event
+                    }
+                )
             p.start()
 
     def start_macro_move(self, move=True, record=False):
         result = messagebox.askyesno("확인", "매크로 마우스 기록=False 무브=True 시작하시겠습니까?")
         if result:
             self.stop_move_event.clear()            
-            p = Process(target=record_mouse_path, kwargs={"move_mouse": move, "record": record, "stop_event": self.stop_move_event})
+            p = Process(
+                target=record_mouse_path, 
+                kwargs={
+                    "move_mouse": move, 
+                    "log_queue": globals.LOG_QUEUE, 
+                    "record": record, 
+                    "stop_event": self.stop_move_event
+                    }
+                )
             p.start()
 
     def start_record(self, record=False):
         result = messagebox.askyesno("확인", "유저 마우스 기록=True 시작하시겠습니까?")
         if result:
             self.stop_move_event.clear()            
-            p = Process(target=useMouse.record_mouse_path, kwargs={"record": record, "stop_event": self.stop_move_event})
+            p = Process(
+                target=useMouse.record_mouse_path, 
+                kwargs={
+                    "record": record, 
+                    "stop_event": self.stop_move_event,
+                    "log_queue" : globals.LOG_QUEUE
+                    }
+                )
             p.start()
 
     def start_train(self):
@@ -269,7 +315,10 @@ class MouseMacroUI(tk.Tk):
             self.stop_train.clear()
             threading.Thread(
                 target=train.main,
-                args=(self.stop_train,),
+                kwargs={
+                    "stop_event" : self.stop_train,
+                    "log_queue" : globals.LOG_QUEUE
+                },
                 daemon=True
             ).start()
 
@@ -279,7 +328,9 @@ class MouseMacroUI(tk.Tk):
             self.stop_inference_event.clear()
             threading.Thread(
                 target=inference.main,
-                args=(self.stop_inference_event,),
+                kwargs={
+                    "stop_event" : self.stop_inference_event,
+                },
                 daemon=True
             ).start()
 
@@ -287,20 +338,20 @@ class MouseMacroUI(tk.Tk):
         result = messagebox.askyesno("확인", "학습을 중지하시겠습니까?")
         if result:                  
             self.stop_train.set()
-            print("학습 중지 요청됨")
+            globals.LOG_QUEUE.put("학습 중지 요청됨")
 
     def stop_inference(self):
         result = messagebox.askyesno("확인", "탐지를 중지하시겠습니까?")
         if result:                
             self.stop_inference_event.set()
-            print("매크로 탐지 중지 요청됨")
+            globals.LOG_QUEUE.put("매크로 탐지 중지 요청됨")
 
     def clear_db(self):
         result = messagebox.askyesno("확인", "Mouse DB를 초기화하시겠습니까?")
         if result:
             if globals.Recorder == "postgres":
-                DBController.point_clear()
-                print("Mouse DB 초기화")
+                DBController.point_clear(log_queue=globals.LOG_QUEUE)
+                globals.LOG_QUEUE.put("Mouse DB 초기화")
                 messagebox.showinfo("완료", "초기화가 완료되었습니다.")
             else:
                 messagebox.showinfo("경고", "Json 파일을 직접 지워주세요.")
@@ -309,8 +360,8 @@ class MouseMacroUI(tk.Tk):
         result = messagebox.askyesno("확인", "Macro DB를 초기화하시겠습니까?")
         if result:        
             if globals.Recorder == "postgres":            
-                DBController.macro_point_clear()
-                print("Macro DB 초기화")
+                DBController.macro_point_clear(log_queue=globals.LOG_QUEUE)
+                globals.LOG_QUEUE.put("Macro DB 초기화")
                 messagebox.showinfo("완료", "초기화가 완료되었습니다.")
             else:
                 messagebox.showinfo("경고", "Json 파일을 직접 지워주세요.")

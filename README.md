@@ -3,6 +3,9 @@
 ## Model : DENSE +  LSTM + CNN module 복합 구조
 
 ---
+# Version 1.0.3 Update
+- 마우스 포인터 기록 이어쓰기로 변경
+- print -> log 창으로 이동
 
 # Version 1.0.2 Update
 

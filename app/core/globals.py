@@ -15,7 +15,16 @@ FEACTURE = [
     "turn_acc"    # 방향 가속도
 ]
 
-MACRO_DETECTOR  = []
+MACRO_DETECTOR  = [] 
 
 Recorder = settings.Recorder
 JsonPath = settings.JsonPath
+
+LOG_QUEUE = None
+
+
+def init_manager():
+    global LOG_QUEUE
+    from multiprocessing import Manager
+    manager = Manager()
+    LOG_QUEUE = manager.Queue()

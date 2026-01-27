@@ -1,12 +1,17 @@
 from app.models.MousePoint import MousePoint
 import matplotlib.pyplot as plt
+import app.core.globals as globals
+from multiprocessing import Queue
 
-def plot_main(points, interval=0.01):
+def plot_main(points, interval=0.01, log_queue:Queue=None):
     """마우스 좌표를 실시간으로 업데이트, 창 닫으면 바로 종료"""
     if len(points) == 0:
         print('DB에 저장된 point가 없습니다.')
         return
 
+    if log_queue:
+        log_queue.put("plot 실행")
+    
     plt.ion()  # interactive 모드 켜기
     fig, ax = plt.subplots(figsize=(8, 6))
     line, = ax.plot([], [], color='blue', linewidth=1, alpha=0.7, label='Mouse Path')
@@ -47,3 +52,6 @@ def plot_main(points, interval=0.01):
         plt.pause(interval)  # interval 만큼 대기하면서 업데이트
 
     plt.ioff()  # interactive 모드 끄기
+
+    if log_queue:
+        log_queue.put("[Process] Plot 창 종료")    

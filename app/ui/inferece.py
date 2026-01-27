@@ -4,12 +4,7 @@ import app.core.globals as globals
 from datetime import datetime
 
 from app.services.macro_dectector import MacroDetector
-
-def add_macro_log(line):
-    globals.MACRO_DETECTOR.append(line)
-    # 리스트 최대 길이 유지
-    if len(globals.MACRO_DETECTOR) > 100:
-        globals.MACRO_DETECTOR.pop(0)
+from app.core.logger import add_macro_log
 
 def main(stop_event):
     detector = MacroDetector(
@@ -17,11 +12,11 @@ def main(stop_event):
         seq_len=globals.SEQ_LEN,
         threshold=0.8
     )
-    print("🟢 Macro Detector Running")
+    add_macro_log("🟢 Macro Detector Running")
 
     while True:
         if stop_event.is_set():
-            print("🛑 Macro Detector Stopped")
+            add_macro_log("🛑 Macro Detector Stopped")
             break
 
         x, y = pyautogui.position()

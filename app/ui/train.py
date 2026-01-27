@@ -24,11 +24,14 @@ import app.repostitories.DBController as DBController
 import app.repostitories.JsonController as JsonController
 
 from app.services.indicators import indicators_generation
+from multiprocessing import Queue
 
 save_path = "app/models/weights/mouse_macro_lstm_best.pt"
 
+
+
 # stride = > seq 데이터 겹치는 양 (How much each sequence shifts forward)
-def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ_LEN, val_df: pd.DataFrame = None, stride: int = globals.STRIDE):
+def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ_LEN, val_df: pd.DataFrame = None, stride: int = globals.STRIDE, log_queue:Queue=None):
 
     # 시퀀스내의 스탭들이 모드 동일할 때 제거 => 움직임이 없을 경우 제외
     def df_to_seq(df: pd.DataFrame):
@@ -51,8 +54,8 @@ def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ
                 return np.empty((0, seq_len, len(globals.FEACTURE)), dtype=np.float32)
             return np.asarray(X, dtype=np.float32)
         except Exception as e:
-            print("Error occurred in df_to_seq:")
-            print(e)                   
+            log_queue.put("Error occurred in df_to_seq:")
+            log_queue.put(e)                   
             traceback.print_exc()      
             return np.empty((0, seq_len, len(globals.FEACTURE)), dtype=np.float32)
 
@@ -61,7 +64,7 @@ def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ
 
     return X_train, X_val
 
-def train_start(train_dataset, val_dataset, batch_size=32, epochs=50, lr=0.0005, device=None, stop_event=None, patience=10):
+def train_start(train_dataset, val_dataset, batch_size=32, epochs=50, lr=0.0005, device=None, stop_event=None, patience=10, log_queue:Queue=None):
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader   = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
@@ -82,7 +85,7 @@ def train_start(train_dataset, val_dataset, batch_size=32, epochs=50, lr=0.0005,
 
     for epoch in range(epochs):
         if stop_event and stop_event.is_set():
-            print("학습 중지 이벤트 발생")
+            log_queue.put("학습 중지 이벤트 발생")
             break
 
         # ===== Train =====
@@ -115,32 +118,32 @@ def train_start(train_dataset, val_dataset, batch_size=32, epochs=50, lr=0.0005,
             best_val_loss = avg_val_loss
             epochs_no_improve = 0  # 초기화
             torch.save(model.state_dict(), save_path)
-            print(f"[Model Saved] Epoch {epoch+1}, Val Loss: {avg_val_loss:.6f}")
+            log_queue.put(f"[Model Saved] Epoch {epoch+1}, Val Loss: {avg_val_loss:.6f}")
         else:
             epochs_no_improve += 1
             if epochs_no_improve >= patience:
-                print(f"Val loss 개선 없음 {patience} epoch. 학습 중지 이벤트 발생")
+                log_queue.put(f"Val loss 개선 없음 {patience} epoch. 학습 중지 이벤트 발생")
                 if stop_event:
                     stop_event.set()
                 break
 
-        print(f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}")
+        log_queue.put(f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}")
 
-    print(f"최종 Best Val Loss: {best_val_loss:.6f}, 모델 저장 위치: {save_path}")
+    log_queue.put(f"최종 Best Val Loss: {best_val_loss:.6f}, 모델 저장 위치: {save_path}")
 
-def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None):
+def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None, log_queue:Queue=None):
     device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
 
-    print("setting")
-    print(f"device : {device}")    
-    print(f"SEQ_LEN : {globals.SEQ_LEN}")
-    print(f"STRIDE : {globals.STRIDE}")
+    log_queue.put("setting")
+    log_queue.put(f"device : {device}")    
+    log_queue.put(f"SEQ_LEN : {globals.SEQ_LEN}")
+    log_queue.put(f"STRIDE : {globals.STRIDE}")
 
     # ===== 데이터 읽기 =====
 
     if globals.Recorder == "postgres":
-        user_all: list[MousePoint] = DBController.read(True)
-        macro_all: list[MacroMousePoint] = DBController.read(False)
+        user_all: list[MousePoint] = DBController.read(True, log_queue=log_queue)
+        macro_all: list[MacroMousePoint] = DBController.read(False, log_queue=log_queue)
         n = min(len(user_all), len(macro_all))
         user_points = user_all[:n]
         macro_points = macro_all[:n]
@@ -156,8 +159,8 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None):
             "y": [p.y for p in macro_points],
         })        
     elif globals.Recorder == "json":
-        user_all: list[dict] = JsonController.read(True)
-        macro_all: list[dict] = JsonController.read(False)
+        user_all: list[dict] = JsonController.read(True, log_queue=log_queue)
+        macro_all: list[dict] = JsonController.read(False, log_queue=log_queue)
 
         n = min(len(user_all), len(macro_all))
         user_points = user_all[:n]      # <- dict 타입 선언 X, 그냥 변수에 할당
@@ -187,7 +190,7 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None):
 
 
     if len(user_points) < seq_len or len(macro_points) < seq_len:
-        print("데이터가 충분하지 않습니다.")
+        log_queue.put("데이터가 충분하지 않습니다.")
         return
 
     # ===== Train/Val split =====
@@ -195,8 +198,21 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None):
     macro_train_df, macro_val_df = train_test_split(setting_macro_df_chunk, test_size=0.2, shuffle=False)
 
     # ===== Sequence =====q
-    user_train_seq, user_val_seq = points_to_features_scaled(train_df=user_train_df, val_df=user_val_df, seq_len=globals.SEQ_LEN, stride=globals.STRIDE)
-    macro_train_seq, macro_val_seq = points_to_features_scaled(train_df=macro_train_df, val_df=macro_val_df, seq_len=globals.SEQ_LEN, stride=globals.STRIDE)
+    user_train_seq, user_val_seq = points_to_features_scaled(
+        train_df=user_train_df, 
+        val_df=user_val_df, 
+        seq_len=globals.SEQ_LEN, 
+        stride=globals.STRIDE,
+        log_queue=log_queue
+        )
+    
+    macro_train_seq, macro_val_seq = points_to_features_scaled(
+        train_df=macro_train_df, 
+        val_df=macro_val_df, 
+        seq_len=globals.SEQ_LEN, 
+        stride=globals.STRIDE,
+        log_queue=log_queue
+        )
 
     # ===== 입력 + 라벨 결합 =====
     X_train = np.concatenate([user_train_seq, macro_train_seq], axis=0)
@@ -215,13 +231,14 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None):
     train_dataset = MouseFeatureDataset(X_train, y_train)
     val_dataset   = MouseFeatureDataset(X_val, y_val)
 
-    print(f"Train seq: {len(X_train)}, Val seq: {len(X_val)}")
-    print(f"Input shape: {X_train.shape}")
+    log_queue.put(f"Train seq: {len(X_train)}, Val seq: {len(X_val)}")
+    log_queue.put(f"Input shape: {X_train.shape}")
 
     # ===== 학습 시작 =====
     train_start(
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         device=device,
-        stop_event=stop_event
+        stop_event=stop_event,
+        log_queue=log_queue
     )
