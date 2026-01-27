@@ -1,7 +1,7 @@
 from app.models.MousePoint import MousePoint
 import matplotlib.pyplot as plt
 
-def plot_main(points: list[MousePoint], interval=0.01):
+def plot_main(points, interval=0.01):
     """마우스 좌표를 실시간으로 업데이트, 창 닫으면 바로 종료"""
     if len(points) == 0:
         print('DB에 저장된 point가 없습니다.')
@@ -23,8 +23,17 @@ def plot_main(points: list[MousePoint], interval=0.01):
     while plt.fignum_exists(fig.number):  # 창이 살아있는 동안만 반복
         if idx < len(points):
             p = points[idx]
-            x_values.append(p.x)
-            y_values.append(p.y)
+
+            # Postgres 객체인지 JSON dict인지 구분
+            if isinstance(p, dict):
+                x = p.get("x", 0)
+                y = p.get("y", 0)
+            else:
+                x = getattr(p, "x", 0)
+                y = getattr(p, "y", 0)
+
+            x_values.append(x)
+            y_values.append(y)
             idx += 1
 
             line.set_data(x_values, y_values)
