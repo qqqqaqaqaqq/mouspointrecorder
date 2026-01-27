@@ -1,199 +1,147 @@
-import os
-import sys
-
-import time
 import tkinter as tk
-import threading
-from multiprocessing import Process
 from tkinter import messagebox
+import threading
+from multiprocessing import Process, Event
 import keyboard
+import time, os, sys
 
 import app.ui.train as train
 import app.ui.inferece as inference
 import app.core.globals as globals
-
 from app.ui.plot import plot_main
 import app.repostitories.DBController as DBController
 import app.repostitories.JsonController as JsonController
-
 from app.services.macroMouse import record_mouse_path
-
 import app.services.userMouse as useMouse
-
-from multiprocessing import Process, Event
 
 def restart_program():
     response = messagebox.askyesno("재시작 알림", "프로그램을 재시작합니다.")
     if not response:
         return
-    """현재 프로그램 재시작"""
-    print("[INFO] 프로그램 재시작 중...")
     python = sys.executable
     os.execl(python, python, *sys.argv)
 
 class MouseMacroUI(tk.Tk):
     def __init__(self):
         super().__init__()
-
         self.title("Mouse Macro Tool")
         self.geometry("1440x980")
         self.minsize(1440, 980)
-        self.configure(bg="#2E3440")
-        self.resizable(True, True)
-
+        self.configure(bg="#1F2024")  # 다크 배경
         self.stop_train = threading.Event()
         self.stop_inference_event = threading.Event()
         self.stop_move_event = Event()
         keyboard.add_hotkey('ctrl+shift+q', lambda: self.stop_move_event.set())    
-        
         self.init_ui()
 
     # ================= UI Helpers =================
-    def create_section(self, parent, title, bg="#3B4252", fg="#ECEFF4"):
-        frame = tk.Frame(parent, bg=bg, padx=10, pady=10)
+    def create_section(self, parent, title, bg="#2A2B30", fg="#E0E0E0"):
+        frame = tk.Frame(parent, bg=bg, padx=15, pady=15, bd=0, relief="flat")
         frame.pack(fill="x", pady=10)
+        frame.configure(highlightbackground="#444", highlightthickness=1, bd=0)
 
-        label = tk.Label(
-            frame,
-            text=title,
-            font=("Helvetica", 14, "bold"),
-            bg=bg,
-            fg=fg
-        )
-        label.pack(anchor="w", pady=(0, 10))
+        label = tk.Label(frame, text=title, font=("Helvetica", 14, "bold"), bg=bg, fg=fg)
+        label.pack(anchor="w", pady=(0,10))
 
         btn_area = tk.Frame(frame, bg=bg)
         btn_area.pack()
-
         return btn_area
 
-    def create_button(self, parent, text, cmd, row, col, bg):
-        btn = tk.Label(
-            parent,
-            text=text,
-            bg=bg,
-            fg="#2E3440",
-            font=("Helvetica", 10, "bold"),
-            width=40,
-            height=2,
-            relief="raised",
-            bd=0
-        )
+    def create_button(self, parent, text, cmd, row, col, bg="#3C3F41"):
+        btn = tk.Label(parent, text=text, bg=bg, fg="#FFFFFF", font=("Helvetica", 11, "bold"),
+                       width=36, height=2, relief="raised", bd=0, cursor="hand2")
         btn.grid(row=row, column=col, padx=6, pady=6)
         btn.bind("<Button-1>", lambda e: cmd())
-        btn.bind("<Enter>", lambda e: btn.config(bg="#81A1C1"))
+        btn.bind("<Enter>", lambda e: btn.config(bg="#5C7AEA"))
         btn.bind("<Leave>", lambda e: btn.config(bg=bg))
+        return btn
 
     # ================= UI Layout =================
     def init_ui(self):
         # 🐭 Title
-        title_label = tk.Label(
-            self,
-            text="🐭 Mouse Macro Tool",
-            font=("Helvetica", 22, "bold"),
-            bg="#2E3440",
-            fg="#ECEFF4"
-        )
-        title_label.pack(pady=(20, 15))
+        title_label = tk.Label(self, text="🐭 Mouse Macro Tool", font=("Helvetica", 24, "bold"),
+                               bg="#1F2024", fg="#FFFFFF")
+        title_label.pack(pady=(20,15))
 
         # Main Frame
-        main_frame = tk.Frame(self, bg="#434C5E")
+        main_frame = tk.Frame(self, bg="#1F2024")
         main_frame.pack(padx=20, pady=10, fill="both", expand=True)
 
-        # ===================== LEFT PANEL (기능) =====================
-        left_frame = tk.Frame(main_frame, bg="#434C5E")
+        # ===== LEFT PANEL =====
+        left_frame = tk.Frame(main_frame, bg="#1F2024")
         left_frame.pack(side="left", fill="both", expand=True)
 
         # --- Recording Section ---
-        record_area = self.create_section(left_frame, "🎥 Recording : Exit Key : q", bg="#4C566A", fg="#ECEFF4")
+        record_area = self.create_section(left_frame, "🎥 Recording (Exit Key: Ctrl + Shift + Q)")
         buttons_info = [
             ("Mouse Record", lambda: self.start_record(record=True)),
-            ("Macro Record Move False", lambda: self.start_macro_record_move_false(move=False, record=True)),
+            ("Macro Record Move False", lambda: self.start_macro_record_move_false(move=False, user_macro=True, record=True)),
+            ("User Macro Record", lambda: self.start_macro_record_move_false(move=False, user_macro=True, record=True)),            
             ("Macro Record Move True", lambda: self.start_macro_record_move_true(move=True, record=True)),
-            ("Macro Move", lambda: self.start_macro_move(move=True, record=False)),
+            ("Macro Move", lambda: self.start_macro_move(move=True, record=False)),      
         ]
-        colors = ["#88C0D0", "#88C0D0", "#88C0D0", "#88C0D0"]
+        colors = ["#5C7AEA"]*5
         for idx, (text, cmd) in enumerate(buttons_info):
             row, col = divmod(idx, 2)
             self.create_button(record_area, text, cmd, row, col, colors[idx])
 
         # --- SEQ_LEN / STRIDE Section ---
-        seq_frame = tk.Frame(left_frame, bg="#3B4252", padx=15, pady=15, relief="raised", bd=2)
+        seq_frame = tk.Frame(left_frame, bg="#2A2B30", padx=10, pady=10)
         seq_frame.pack(fill="x", pady=15)
 
-        tk.Label(seq_frame, text="SEQ_LEN:", bg="#3B4252", fg="#ECEFF4", font=("Helvetica", 12, "bold")).grid(row=0, column=0, sticky="w")
+        tk.Label(seq_frame, text="SEQ_LEN:", bg="#2A2B30", fg="#E0E0E0", font=("Helvetica", 12, "bold")).grid(row=0, column=0)
         self.seq_entry = tk.Entry(seq_frame, width=6, font=("Helvetica", 12))
         self.seq_entry.grid(row=0, column=1, padx=(5,20))
         self.seq_entry.insert(0, str(globals.SEQ_LEN))
 
-        tk.Label(seq_frame, text="STRIDE:", bg="#3B4252", fg="#ECEFF4", font=("Helvetica", 12, "bold")).grid(row=0, column=2, sticky="w")
+        tk.Label(seq_frame, text="STRIDE:", bg="#2A2B30", fg="#E0E0E0", font=("Helvetica", 12, "bold")).grid(row=0, column=2)
         self.stride_entry = tk.Entry(seq_frame, width=6, font=("Helvetica", 12))
         self.stride_entry.grid(row=0, column=3, padx=(5,20))
         self.stride_entry.insert(0, str(globals.STRIDE))
 
-        tk.Button(seq_frame, text="적용", command=self.apply_seq_stride, bg="#A3BE8C", fg="#2E3440", font=("Helvetica", 12, "bold")).grid(row=0, column=4)
+        tk.Button(seq_frame, text="적용", command=self.apply_seq_stride, bg="#4CBB17", fg="#FFFFFF", font=("Helvetica", 12, "bold")).grid(row=0, column=4, padx=(5,0))
 
-
-        # === Reocrder Toggle 버튼 ====
-        self.toggle_btn = tk.Button(
-            seq_frame, 
-            text=f"저장: {globals.Recorder}", 
-            command=self.toggle_record_path,
-            bg="#D08770", 
-            fg="#ECEFF4", 
-            font=("Helvetica", 12, "bold")
-        )
+        self.toggle_btn = tk.Button(seq_frame, text=f"저장: {globals.Recorder}", command=self.toggle_record_path,
+                                    bg="#FF6F61", fg="#FFFFFF", font=("Helvetica", 12, "bold"))
         self.toggle_btn.grid(row=0, column=5, padx=(10,0))
 
         # --- Plot Section ---
-        plot_area = self.create_section(left_frame, "📊 Plot", bg="#4C566A", fg="#ECEFF4")
-        self.create_button(plot_area, "Mouse Plot", lambda: self.make_plot_in_process(True), 0, 0, "#A3BE8C")
-        self.create_button(plot_area, "Macro Plot", lambda: self.make_plot_in_process(False), 0, 1, "#A3BE8C")
+        plot_area = self.create_section(left_frame, "📊 Plot")
+        self.create_button(plot_area, "Mouse Plot", lambda: self.make_plot_in_process(True), 0, 0, "#4CBB17")
+        self.create_button(plot_area, "Macro Plot", lambda: self.make_plot_in_process(False), 0, 1, "#4CBB17")
 
         # --- AI Section ---
-        ai_area = self.create_section(left_frame, "🧠 AI", bg="#4C566A", fg="#ECEFF4")
-        button_frame = tk.Frame(ai_area, bg="#4C566A")
+        ai_area = self.create_section(left_frame, "🧠 AI")
+        button_frame = tk.Frame(ai_area, bg="#2A2B30")
         button_frame.grid(row=0, column=0, sticky="nw")
-        self.create_button(button_frame, "Train", self.start_train, 0, 0, "#5E81AC")
-        self.create_button(button_frame, "Stop Train", self.stop_training, 0, 1, "#BF616A")
-        self.create_button(button_frame, "Inference", self.start_inference, 1, 0, "#81A1C1")
-        self.create_button(button_frame, "Stop Inference", self.stop_inference, 1, 1, "#BF616A")
+        self.create_button(button_frame, "Train", self.start_train, 0, 0, "#5C7AEA")
+        self.create_button(button_frame, "Stop Train", self.stop_training, 0, 1, "#E94B3C")
+        self.create_button(button_frame, "Inference", self.start_inference, 1, 0, "#81C0F7")
+        self.create_button(button_frame, "Stop Inference", self.stop_inference, 1, 1, "#E94B3C")
 
         # --- Database Section ---
-        db_area = self.create_section(left_frame, "🧹 Database", bg="#4C566A", fg="#ECEFF4")
-        self.create_button(db_area, "Mouse Clear", self.clear_db, 0, 0, "#D08770")
-        self.create_button(db_area, "Macro Clear", self.macro_clear_db, 0, 1, "#D08770")
+        db_area = self.create_section(left_frame, "🧹 Database")
+        self.create_button(db_area, "Mouse Clear", self.clear_db, 0, 0, "#FF8C42")
+        self.create_button(db_area, "Macro Clear", self.macro_clear_db, 0, 1, "#FF8C42")
 
-        # ===================== RIGHT PANEL (로그) =====================
-        right_frame = tk.Frame(main_frame, bg="#2E3440", width=400)
+        # ===== RIGHT PANEL (로그) =====
+        right_frame = tk.Frame(main_frame, bg="#1F2024", width=400)
         right_frame.pack(side="right", fill="y")
 
         scrollbar = tk.Scrollbar(right_frame)
         scrollbar.pack(side="right", fill="y")
 
-        self.macro_text = tk.Text(
-            right_frame,
-            width=100,
-            bg="#2E3440",
-            fg="#ECEFF4",
-            font=("Helvetica", 14),
-            yscrollcommand=scrollbar.set
-        )
+        self.macro_text = tk.Text(right_frame, width=100, bg="#2A2B30", fg="#E0E0E0",
+                                  font=("Helvetica", 14), yscrollcommand=scrollbar.set, relief="flat")
         self.macro_text.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.macro_text.yview)
 
-        # ===== MACRO_DETECTOR 업데이트 시작 =====
         self.update_macro_detector()
 
-        # ===================== Footer =====================
-        footer = tk.Label(
-            self,
-            text="v1.1 - Mouse Macro Tool, Created by qqqa",
-            font=("Helvetica", 10, "italic"),
-            bg="#2E3440",
-            fg="#D8DEE9"
-        )
+        footer = tk.Label(self, text="v1.1 - Mouse Macro Tool, Created by qqqa", font=("Helvetica", 10, "italic"),
+                          bg="#1F2024", fg="#A0A0A0")
         footer.pack(side="bottom", pady=10)
+
 
     # ===================== MACRO_DETECTOR 업데이트 =====================
     def update_macro_detector(self):
@@ -287,11 +235,11 @@ class MouseMacroUI(tk.Tk):
         p = Process(target=plot_main, args=(points,))
         p.start()
 
-    def start_macro_record_move_false(self, move=False, record=True):
+    def start_macro_record_move_false(self, move=False, user_macro=False, record=True):
         result = messagebox.askyesno("확인", "매크로 기록 무브=False 시작하시겠습니까?")
         if result:
             self.stop_move_event.clear()
-            p = Process(target=record_mouse_path, kwargs={"move_mouse": move, "record": record, "stop_event": self.stop_move_event})
+            p = Process(target=record_mouse_path, kwargs={"move_mouse": move, "record": record, "user_macro":user_macro, "stop_event": self.stop_move_event})
             p.start()
 
     def start_macro_record_move_true(self, move=True, record=True):
