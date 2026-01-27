@@ -1,9 +1,12 @@
 import os
+import sys
 
+import time
 import tkinter as tk
 import threading
 from multiprocessing import Process
 from tkinter import messagebox
+import keyboard
 
 import app.ui.train as train
 import app.ui.inferece as inference
@@ -16,6 +19,15 @@ from app.services.macroMouse import record_mouse_path
 import app.services.userMouse as useMouse
 
 from multiprocessing import Process, Event
+
+def restart_program():
+    response = messagebox.askyesno("재시작 알림", "프로그램을 재시작합니다.")
+    if not response:
+        return
+    """현재 프로그램 재시작"""
+    print("[INFO] 프로그램 재시작 중...")
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
 
 class MouseMacroUI(tk.Tk):
     def __init__(self):
@@ -30,7 +42,8 @@ class MouseMacroUI(tk.Tk):
         self.stop_train = threading.Event()
         self.stop_inference_event = threading.Event()
         self.stop_move_event = Event()
-
+        keyboard.add_hotkey('ctrl+shift+q', lambda: self.stop_move_event.set())    
+        
         self.init_ui()
 
     # ================= UI Helpers =================
@@ -118,6 +131,18 @@ class MouseMacroUI(tk.Tk):
 
         tk.Button(seq_frame, text="적용", command=self.apply_seq_stride, bg="#A3BE8C", fg="#2E3440", font=("Helvetica", 12, "bold")).grid(row=0, column=4)
 
+
+        # === Reocrder Toggle 버튼 ====
+        self.toggle_btn = tk.Button(
+            seq_frame, 
+            text=f"저장: {globals.Recorder}", 
+            command=self.toggle_record_path,
+            bg="#D08770", 
+            fg="#ECEFF4", 
+            font=("Helvetica", 12, "bold")
+        )
+        self.toggle_btn.grid(row=0, column=5, padx=(10,0))
+
         # --- Plot Section ---
         plot_area = self.create_section(left_frame, "📊 Plot", bg="#4C566A", fg="#ECEFF4")
         self.create_button(plot_area, "Mouse Plot", lambda: self.make_plot_in_process(True), 0, 0, "#A3BE8C")
@@ -175,7 +200,43 @@ class MouseMacroUI(tk.Tk):
             self.macro_text.insert(tk.END, f"{line}\n")
         self.macro_text.see(tk.END)
         self.after(200, self.update_macro_detector)
+    
+    # ===================== MouseMacroUI 클래스 안 =====================
+
+    def toggle_record_path(self):
+        # RecordPath 토글
+        if getattr(globals, "Recorder", "json") == "json":
+            globals.Recorder = "postgres"
+        else:
+            globals.Recorder = "json"
         
+        print(f"[INFO] 저장 타입 변경: {globals.Recorder}")
+        
+        # 버튼 텍스트 업데이트
+        if hasattr(self, "toggle_btn"):
+            self.toggle_btn.config(text=f"저장: {globals.Recorder}")
+
+        # .env 업데이트
+        env_path = ".env"
+        env_dict = {}
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if "=" in line:
+                        key, val = line.strip().split("=", 1)
+                        env_dict[key] = val
+        
+        env_dict["Recorder"] = globals.Recorder
+
+        with open(env_path, "w", encoding="utf-8") as f:
+            for key, val in env_dict.items():
+                f.write(f"{key}={val}\n")
+
+        print(f"[INFO] .env 파일 업데이트 완료: Recorder={globals.Recorder}")
+        print(f"3초후 프로그램이 재부팅 됩니다.")
+        time.sleep(3)
+        restart_program()
+
     def apply_seq_stride(self):
         try:
             seq_val = int(self.seq_entry.get())

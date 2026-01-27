@@ -8,7 +8,7 @@ class MousePoint(Base):
     __tablename__ = "mouse_points"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, nullable=False)
     x = Column(Integer, nullable=False)
     y = Column(Integer, nullable=False)
 
@@ -17,6 +17,6 @@ class MacroMousePoint(Base):
     __tablename__ = "macro_mouse_points"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, nullable=False)
     x = Column(Integer, nullable=False)
     y = Column(Integer, nullable=False)

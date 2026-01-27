@@ -50,7 +50,7 @@ class MacroDetector:
     def _infer(self):
         xs = [p[0] for p in self.buffer]
         ys = [p[1] for p in self.buffer]
-        ts = [p[2] for p in self.buffer]  # datetime 그대로
+        ts = [p[2] for p in self.buffer]  # timestamp 그대로
 
         df:pd.DataFrame = pd.DataFrame({"timestamp": ts, "x": xs, "y": ys})
         df = indicators_generation(df)

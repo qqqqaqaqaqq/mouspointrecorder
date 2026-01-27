@@ -84,14 +84,14 @@ Y = [1, 0]
   - Train: Hybrid model combining DENSE, LSTM, and CNN modules
     - input : (batch, feature, seq_len)
     - CNN : 1 dimension
-    - LSTM: captures sequential/time-series dependencies
+    - LSTM: captures sequential/timestamp-series dependencies
     - DENSE: fully connected layers for final prediction
   - Step
     - Step 1: (batch, seq_len, feature) → (batch, feature, seq_len) (for CNN input)
     - Step 2: Extract local patterns using CNN
     - Step 3: Convert to (batch, seq_len, cnn_channels[-1]) (for LSTM input)
     - Step 4: Learn sequential patterns with LSTM
-    - Step 5: Pass only the last time-step output to Dense layer
+    - Step 5: Pass only the last timestamp-step output to Dense layer
     - Step 6: Compute the final output
   - Caution
     - If the stride is too small, sequences become too dense, which can prevent proper learning.
@@ -105,7 +105,7 @@ Y = [1, 0]
     - Capture long-range dependencies in the sequence
     - Integrate local patterns from CNN into global sequence understanding
   - Role of DENSE
-    - Take the final LSTM output (usually the last time-step) and map it to the desired output
+    - Take the final LSTM output (usually the last timestamp-step) and map it to the desired output
     - Perform final prediction using fully connected layers
     - Combine learned features into a single output value or class probability
 

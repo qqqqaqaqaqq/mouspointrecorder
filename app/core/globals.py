@@ -1,6 +1,5 @@
 import queue
 from app.core.settings import settings
-from collections import deque
 
 MOUSE_QUEUE = queue.Queue()
 
@@ -17,3 +16,6 @@ FEACTURE = [
 ]
 
 MACRO_DETECTOR  = []
+
+Recorder = settings.Recorder
+JsonPath = settings.JsonPath

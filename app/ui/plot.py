@@ -11,7 +11,7 @@ def plot_main(points: list[MousePoint], interval=0.01):
     fig, ax = plt.subplots(figsize=(8, 6))
     line, = ax.plot([], [], color='blue', linewidth=1, alpha=0.7, label='Mouse Path')
     scatter = ax.scatter([], [], c='red', s=15, alpha=0.6, label='Points')
-    ax.set_title("Mouse Movement Plot (Time Order)")
+    ax.set_title("Mouse Movement Plot (timestamp Order)")
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
     ax.grid(True, linestyle='--', alpha=0.5)

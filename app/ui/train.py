@@ -20,7 +20,9 @@ from app.models.DenseLstm import DenseLSTMModel
 from app.models.CnnDenseLstm import CnnDenseLstm
 from app.models.MouseFeatureDataset import MouseFeatureDataset
 
-from app.repostitories.DBController import read
+import app.repostitories.DBController as DBController
+import app.repostitories.JsonController as JsonController
+
 from app.services.indicators import indicators_generation
 
 save_path = "app/models/weights/mouse_macro_lstm_best.pt"
@@ -128,24 +130,42 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None):
     print(f"STRIDE : {globals.STRIDE}")
 
     # ===== 데이터 읽기 =====
-    user_all: list[MousePoint] = read(True)
-    macro_all: list[MacroMousePoint] = read(False)
 
-    n = min(len(user_all), len(macro_all))
-    user_points = user_all[:n]
-    macro_points = macro_all[:n]
+    if globals.Recorder == "postgres":
+        user_all: list[MousePoint] = DBController.read(True)
+        macro_all: list[MacroMousePoint] = DBController.read(False)
+        n = min(len(user_all), len(macro_all))
+        user_points = user_all[:n]
+        macro_points = macro_all[:n]
+        
+        user_df_chunk = pd.DataFrame({
+            "timestamp": [p.timestamp for p in user_points],
+            "x": [p.x for p in user_points],
+            "y": [p.y for p in user_points],
+        })
+        macro_df_chunk = pd.DataFrame({
+            "timestamp": [p.timestamp for p in macro_points],
+            "x": [p.x for p in macro_points],
+            "y": [p.y for p in macro_points],
+        })        
+    elif globals.Recorder == "json":
+        user_all: list[dict] = JsonController.read(True)
+        macro_all: list[dict] = JsonController.read(False)
 
-    user_df_chunk = pd.DataFrame({
-        "timestamp": [p.timestamp for p in user_points],
-        "x": [p.x for p in user_points],
-        "y": [p.y for p in user_points],
-    })
-    macro_df_chunk = pd.DataFrame({
-        "timestamp": [p.timestamp for p in macro_points],
-        "x": [p.x for p in macro_points],
-        "y": [p.y for p in macro_points],
-    })
+        n = min(len(user_all), len(macro_all))
+        user_points = user_all[:n]      # <- dict 타입 선언 X, 그냥 변수에 할당
+        macro_points = macro_all[:n]
 
+        user_df_chunk = pd.DataFrame({
+            "timestamp": [p.get("timestamp") for p in user_points],
+            "x": [p.get("x") for p in user_points],
+            "y": [p.get("y") for p in user_points],
+        })
+        macro_df_chunk = pd.DataFrame({
+            "timestamp": [p.get("timestamp") for p in macro_points],
+            "x": [p.get("x") for p in macro_points],
+            "y": [p.get("y") for p in macro_points],
+        })
 
     # ===== Feature 계산 =====
     setting_user_df_chunk: pd.DataFrame = indicators_generation(user_df_chunk)
@@ -167,7 +187,7 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None):
     user_train_df, user_val_df = train_test_split(setting_user_df_chunk, test_size=0.2, shuffle=False)
     macro_train_df, macro_val_df = train_test_split(setting_macro_df_chunk, test_size=0.2, shuffle=False)
 
-    # ===== Sequence =====
+    # ===== Sequence =====q
     user_train_seq, user_val_seq = points_to_features_scaled(train_df=user_train_df, val_df=user_val_df, seq_len=globals.SEQ_LEN, stride=globals.STRIDE)
     macro_train_seq, macro_val_seq = points_to_features_scaled(train_df=macro_train_df, val_df=macro_val_df, seq_len=globals.SEQ_LEN, stride=globals.STRIDE)
 

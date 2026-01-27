@@ -1,9 +1,12 @@
+import os
+import json
+
 from multiprocessing import Event
 import pyautogui
 import time, random, math
 from datetime import datetime
-import keyboard
-import threading
+
+import app.core.globals as globals
 
 pyautogui.FAILSAFE = True
 screen_width, screen_height = pyautogui.size()
@@ -23,32 +26,20 @@ def record_mouse_path(stop_event: Event = None, move_mouse=False, record=True, s
     if stop_event is None:
         stop_event = Event()
 
-    # Q 키 감지 스레드 (Process 내부)
-    def wait_for_q():
-        keyboard.wait('q')
-        stop_event.set()
-        print("[Process] Q 입력 감지: 마우스 이동 종료")
-
-    threading.Thread(target=wait_for_q, daemon=True).start()
-
     points = [(random.randint(0, screen_width), random.randint(0, screen_height)) for _ in range(4)]
     all_data = [] 
 
     print("[Process] 마우스 경로 생성 시작")
     while not stop_event.is_set():
-        if keyboard.is_pressed('q'):
-            stop_event.set()
-            print("[Process] Q 입력 감지: 마우스 이동 종료")
-            break
-
         for _ in range(segments):
-            if stop_event.is_set(): break
             p0,p1,p2,p3 = points[-4:]
             steps = random.randint(30,60)
             pattern = random.choices(['ease','linear','zigzag','pause'], weights=[0.5,0.2,0.2,0.1])[0]
 
             for i in range(steps):
-                if stop_event.is_set(): break
+                if stop_event.is_set():
+                    break
+                   
                 t = i / steps
                 t_mod = ease_in_out_quad(t) if pattern=='ease' else \
                         linear(t) if pattern=='linear' else \
@@ -61,24 +52,24 @@ def record_mouse_path(stop_event: Event = None, move_mouse=False, record=True, s
                 y = max(0,min(screen_height,y))
 
                 timestamp = datetime.now()
-                data = {'time': timestamp, 'x': int(x), 'y': int(y)}
+                data = {'timestamp': timestamp, 'x': int(x), 'y': int(y)}
                 if record: all_data.append(data)
-                if move_mouse: pyautogui.moveTo(int(x),int(y),duration=0.01)
+                if move_mouse: pyautogui.moveTo(int(x),int(y),duration=0)
                 if pattern=='pause' and random.random()<0.05: time.sleep(random.uniform(0.05,0.2))
 
                 time.sleep(interval)
 
             points.append((random.randint(0,screen_width), random.randint(0,screen_height)))
-          
+            
 
     # DB 저장
-    if record:
+    if record and globals.Recorder == "postgres":
         if all_data:
             from app.repostitories.DBController import SessionLocal, MacroMousePoint
             db = SessionLocal()
             try:
                 for item in all_data:
-                    mp = MacroMousePoint(timestamp=item['time'], x=item['x'], y=item['y'])
+                    mp = MacroMousePoint(timestamp=item['timestamp'], x=item['x'], y=item['y'])
                     db.add(mp)
                 db.commit()
                 print(f"[Process] 총 {len(all_data)}개 포인트 DB 저장 완료")
@@ -87,3 +78,21 @@ def record_mouse_path(stop_event: Event = None, move_mouse=False, record=True, s
                 print("[Process] DB 저장 오류:", e)
             finally:
                 db.close()
+    elif record and globals.Recorder == "json":
+        if all_data:
+            # 저장 경로, 현재 디렉토리 기준
+            save_dir = os.path.join(globals.JsonPath, "macro")
+            os.makedirs(save_dir, exist_ok=True)  # 폴더 없으면 생성
+            # 파일 이름: 현재 시간 기준
+            file_name = f"macro_move.json"
+            file_path = os.path.join(save_dir, file_name)
+
+            try:
+                # JSON으로 저장
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(all_data, f, ensure_ascii=False, indent=4, default=str)
+                print(f"[Process] 총 {len(all_data)}개 포인트 JSON 저장 완료: {file_path}")
+            except Exception as e:
+                print("[Process] JSON 저장 오류:", e)
+
+    stop_event.set()

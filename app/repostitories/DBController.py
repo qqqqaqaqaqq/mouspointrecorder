@@ -16,7 +16,7 @@ def point_insert():
 
         try:
             mouse_point = MousePoint(
-                timestamp=data['time'],
+                timestamp=data['timestamp'],
                 x=data['x'],
                 y=data['y']
             )
@@ -36,7 +36,7 @@ def macro_point_insert():
 
         try:
             mouse_point = MacroMousePoint(
-                timestamp=data['time'],
+                timestamp=data['timestamp'],
                 x=data['x'],
                 y=data['y']
             )
