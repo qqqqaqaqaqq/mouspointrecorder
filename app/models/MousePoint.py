@@ -11,7 +11,8 @@ class MousePoint(Base):
     timestamp = Column(DateTime, nullable=False)
     x = Column(Integer, nullable=False)
     y = Column(Integer, nullable=False)
-
+    event_type = Column(Integer, nullable=False)
+    is_pressed = Column(Integer, nullable=False)
 
 class MacroMousePoint(Base):
     __tablename__ = "macro_mouse_points"
@@ -20,3 +21,5 @@ class MacroMousePoint(Base):
     timestamp = Column(DateTime, nullable=False)
     x = Column(Integer, nullable=False)
     y = Column(Integer, nullable=False)
+    event_type = Column(Integer, nullable=False)
+    is_pressed = Column(Integer, nullable=False)    

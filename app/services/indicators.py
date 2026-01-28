@@ -11,7 +11,7 @@ def indicators_generation(df_chunk: pd.DataFrame) -> pd.DataFrame:
     # 시간 차 (초)
     df["timestamp"] = pd.to_datetime(df["timestamp"]) 
     df["dt"] = df["timestamp"].diff().dt.total_seconds()
-    df.loc[df["dt"] <= 0, "dt"] = np.nan
+    df["dt"] = df["dt"].clip(lower=0.001)
 
     # 위치 변화량
     df["dx"] = df["x"].diff()
@@ -50,6 +50,28 @@ def indicators_generation(df_chunk: pd.DataFrame) -> pd.DataFrame:
     # 방향 벡터
     df["sin"] = np.sin(df["angle"])
     df["cos"] = np.cos(df["angle"])
+
+    df["event_down"] = (df["event_type"] == 1).astype(int)
+    df["event_up"]   = (df["event_type"] == 2).astype(int)
+
+    df["press_duration"] = 0.0
+    pressed = False
+    start_time = None
+
+    for i in range(len(df)):
+        if df.loc[i, "event_type"] == 1:  # down
+            pressed = True
+            start_time = df.loc[i, "timestamp"]
+
+        elif df.loc[i, "event_type"] == 2 and pressed:  # up
+            pressed = False
+            if start_time is not None:
+                # 다운~업 사이 누른 시간 계산
+                df.loc[i, "press_duration"] = (
+                    df.loc[i, "timestamp"] - start_time
+                ).total_seconds()
+            start_time = None
+
 
     # NaN / inf → 0
     df = df.replace([np.inf, -np.inf], np.nan).fillna(0)

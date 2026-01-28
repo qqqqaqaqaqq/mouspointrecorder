@@ -7,49 +7,6 @@ from app.models.MousePoint import MousePoint, MacroMousePoint
 import app.core.globals as globals
 from multiprocessing import Queue
 
-def point_insert(log_queue:Queue=None):
-    db = SessionLocal()
-
-    while True:
-        data = globals.MOUSE_QUEUE.get()
-        if data is None:
-            break
-
-        try:
-            mouse_point = MousePoint(
-                timestamp=data['timestamp'],
-                x=data['x'],
-                y=data['y']
-            )
-            db.add(mouse_point)
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            if log_queue:
-                log_queue.put(f"DB 저장 오류 : {e}")
-
-def macro_point_insert(log_queue:Queue=None):
-    db = SessionLocal()
-
-    while True:
-        data = globals.MOUSE_QUEUE.get()
-        if data is None:
-            break
-
-        try:
-            mouse_point = MacroMousePoint(
-                timestamp=data['timestamp'],
-                x=data['x'],
-                y=data['y']
-            )
-            db.add(mouse_point)
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            if log_queue:
-                log_queue.put(f"DB 저장 오류 : {e}")
-
-
 def point_clear(log_queue:Queue=None):
     db = SessionLocal()
     try:

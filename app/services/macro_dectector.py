@@ -1,13 +1,9 @@
 import torch
-import numpy as np
+
 from collections import deque
 from datetime import datetime
-import joblib
 
-from sklearn.preprocessing import StandardScaler
-from app.models.DenseLstm import DenseLSTMModel
 from app.models.CnnDenseLstm import CnnDenseLstm
-from sklearn.preprocessing import StandardScaler
 
 from app.ui.train import points_to_features_scaled
 
@@ -15,7 +11,6 @@ from app.services.indicators import indicators_generation
 
 import pandas as pd
 import app.core.globals as globals
-import app.ui.train as train
 
 class MacroDetector:
     def __init__(self, model_path: str, seq_len=globals.SEQ_LEN, threshold=0.8, device=None):
@@ -25,9 +20,9 @@ class MacroDetector:
         # ===== 모델 초기화 =====
         self.model = CnnDenseLstm(
             input_size=len(globals.FEACTURE), 
-            lstm_hidden_size=128, 
-            lstm_layers=3, 
-            dropout=0.3
+            lstm_hidden_size=globals.lstm_hidden_size, 
+            lstm_layers=globals.lstm_layers, 
+            dropout=globals.dropout
         )
 
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))
@@ -39,8 +34,8 @@ class MacroDetector:
         self.prev_speed = 0.0
 
 
-    def push(self, x: int, y: int, timestamp: datetime):
-        self.buffer.append((x, y, timestamp))
+    def push(self, data:dict):
+        self.buffer.append((data.get('x'), data.get('y'), data.get('timestamp'), data.get('event_type'), data.get('is_pressed')))
 
         if len(self.buffer) < self.seq_len * 3:
             return None
@@ -50,9 +45,11 @@ class MacroDetector:
     def _infer(self):
         xs = [p[0] for p in self.buffer]
         ys = [p[1] for p in self.buffer]
-        ts = [p[2] for p in self.buffer]  # timestamp 그대로
+        ts = [p[2] for p in self.buffer] 
+        event_type = [p[3] for p in self.buffer] 
+        is_pressed = [p[4] for p in self.buffer]
 
-        df:pd.DataFrame = pd.DataFrame({"timestamp": ts, "x": xs, "y": ys})
+        df:pd.DataFrame = pd.DataFrame({"timestamp": ts, "x": xs, "y": ys, "event_type" : event_type, "is_pressed":is_pressed })
         df = indicators_generation(df)
 
         df = df.sort_values('timestamp').reset_index(drop=True)

@@ -3,6 +3,19 @@
 ## Model : DENSE +  LSTM + CNN module 복합 구조
 
 ---
+# Version 1.0.4 Update
+- 매크로 마우스 포인터 변동 곡선 개선
+- signal click 추가
+- plot 개선
+- threshold 추가 human/macro 판단 기준
+- [필수파일 env](#threshold)
+- q 소비 알고리즘 추가 8만개 이상 초과시 좌표 이동 문제 해결
+- Model 하이퍼 파라미터 수정 
+  - dropout = 0.4, 
+  - lstm_hidden_size=32,
+  - lstm_layer=2
+- 데이터 전처리 수정 train val shuffle
+  - shuffle=True
 
 # Version 1.0.3 Update
 - 마우스 포인터 기록 이어쓰기로 변경
@@ -27,6 +40,7 @@ DB_PORT=****<br>
 
 해당 부분은 유지 => 값은 없어도 문제없습니다. 처음 불러올때 env 파일내 key부터 찾아서 key가 하나라도없으면 error가 걸립니다.
 전체 내용은 ## 필수 파일 .env 확인
+- [필수파일 env](#env확인)
 
 json으로 기록 시 data 양이 방대하면 지연이 길어지므로 3~5만 이내 데이터만 추천드립니다. => 15만 까지 무리없는 걸로 확인 <br>
 process 충돌로 인한 오류 수정 <br>
@@ -58,7 +72,7 @@ pip install -r requirements.txt<br>
 postgres<br>
 pgadmin(postgres db 확인용)
 
-## 필수파일
+## 필수파일 env
 .env 
 
 파일 내용
@@ -73,7 +87,9 @@ JsonPath=./<br>
 Recorder=json<br>
 
 SEQ_LEN : 300<br>
-STRIDE : 100
+STRIDE : 100<br>
+
+threshold=0.7
 
 ## 실행
 python -m ui

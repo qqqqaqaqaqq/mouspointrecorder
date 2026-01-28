@@ -8,11 +8,9 @@ import traceback
 import time
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 import app.core.globals as globals
-
-from sklearn.preprocessing import StandardScaler
 
 # 모델
 from app.models.MousePoint import MousePoint, MacroMousePoint
@@ -46,8 +44,8 @@ def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ
                 if np.all(seq == seq[0]):
                     continue
 
-                scaler = StandardScaler()
-                seq_scaled = scaler.fit_transform(seq)  # 시퀀스 단위 스케일링
+                scaler = MinMaxScaler(feature_range=(0,1))
+                seq_scaled = scaler.fit_transform(seq)
                 X.append(seq_scaled)
 
             if len(X) == 0:
@@ -64,17 +62,16 @@ def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ
 
     return X_train, X_val
 
-def train_start(train_dataset, val_dataset, batch_size=32, epochs=50, lr=0.0005, device=None, stop_event=None, patience=10, log_queue:Queue=None):
+def train_start(train_dataset, val_dataset, batch_size=64, epochs=300, lr=0.0001, device=None, stop_event=None, patience=50, log_queue:Queue=None):
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader   = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    
     # 모델 초기화
     model = CnnDenseLstm(
         input_size=len(globals.FEACTURE), 
-        lstm_hidden_size=128, 
-        lstm_layers=3, 
-        dropout=0.3
+        lstm_hidden_size=globals.lstm_hidden_size, 
+        lstm_layers=globals.lstm_layers, 
+        dropout=globals.dropout
     ).to(device)
     
     criterion = nn.BCEWithLogitsLoss()
@@ -118,16 +115,19 @@ def train_start(train_dataset, val_dataset, batch_size=32, epochs=50, lr=0.0005,
             best_val_loss = avg_val_loss
             epochs_no_improve = 0  # 초기화
             torch.save(model.state_dict(), save_path)
+
             log_queue.put(f"[Model Saved] Epoch {epoch+1}, Val Loss: {avg_val_loss:.6f}")
-        else:
+
+        else:  
             epochs_no_improve += 1
             if epochs_no_improve >= patience:
                 log_queue.put(f"Val loss 개선 없음 {patience} epoch. 학습 중지 이벤트 발생")
                 if stop_event:
                     stop_event.set()
                 break
-
-        log_queue.put(f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}")
+        
+        if epoch % 10 == 0:
+            log_queue.put(f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}")
 
     log_queue.put(f"최종 Best Val Loss: {best_val_loss:.6f}, 모델 저장 위치: {save_path}")
 
@@ -145,36 +145,54 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None, log_queue:Queue=
         user_all: list[MousePoint] = DBController.read(True, log_queue=log_queue)
         macro_all: list[MacroMousePoint] = DBController.read(False, log_queue=log_queue)
         n = min(len(user_all), len(macro_all))
-        user_points = user_all[:n]
-        macro_points = macro_all[:n]
+
+        log_queue.put(f"user_all length : {len(user_all)}")
+        log_queue.put(f"macro_all length : {len(macro_all)}")
+        log_queue.put(f"data 길이 {n}")
+
+        user_points:list[MousePoint] = user_all[:n]
+        macro_points:list[MacroMousePoint] = macro_all[:n]
         
         user_df_chunk = pd.DataFrame({
             "timestamp": [p.timestamp for p in user_points],
             "x": [p.x for p in user_points],
             "y": [p.y for p in user_points],
+            "event_type" : [p.event_type for p in user_points],
+            "is_pressed" : [p.is_pressed for p in user_points],            
         })
         macro_df_chunk = pd.DataFrame({
             "timestamp": [p.timestamp for p in macro_points],
             "x": [p.x for p in macro_points],
             "y": [p.y for p in macro_points],
+            "event_type" : [p.event_type for p in macro_points],
+            "is_pressed" : [p.is_pressed for p in macro_points],                
         })        
     elif globals.Recorder == "json":
         user_all: list[dict] = JsonController.read(True, log_queue=log_queue)
         macro_all: list[dict] = JsonController.read(False, log_queue=log_queue)
 
         n = min(len(user_all), len(macro_all))
-        user_points = user_all[:n]      # <- dict 타입 선언 X, 그냥 변수에 할당
-        macro_points = macro_all[:n]
+
+        log_queue.put(f"user_all length : {len(user_all)}")
+        log_queue.put(f"macro_all length : {len(macro_all)}")
+        log_queue.put(f"data 길이 {n}")
+
+        user_points:list[dict] = user_all[:n]      # <- dict 타입 선언 X, 그냥 변수에 할당
+        macro_points:list[dict] = macro_all[:n]
 
         user_df_chunk = pd.DataFrame({
             "timestamp": [p.get("timestamp") for p in user_points],
             "x": [p.get("x") for p in user_points],
             "y": [p.get("y") for p in user_points],
+            "event_type" : [p.get("event_type") for p in user_points],
+            "is_pressed" : [p.get("is_pressed") for p in user_points],                
         })
         macro_df_chunk = pd.DataFrame({
             "timestamp": [p.get("timestamp") for p in macro_points],
             "x": [p.get("x") for p in macro_points],
             "y": [p.get("y") for p in macro_points],
+            "event_type" : [p.get("event_type") for p in macro_points],
+            "is_pressed" : [p.get("is_pressed") for p in macro_points],               
         })
 
     # ===== Feature 계산 =====
@@ -188,14 +206,13 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None, log_queue:Queue=
     setting_user_df_chunk = setting_user_df_chunk[globals.FEACTURE].copy()
     setting_macro_df_chunk = setting_macro_df_chunk[globals.FEACTURE].copy()
 
-
     if len(user_points) < seq_len or len(macro_points) < seq_len:
         log_queue.put("데이터가 충분하지 않습니다.")
         return
 
     # ===== Train/Val split =====
-    user_train_df, user_val_df = train_test_split(setting_user_df_chunk, test_size=0.2, shuffle=False)
-    macro_train_df, macro_val_df = train_test_split(setting_macro_df_chunk, test_size=0.2, shuffle=False)
+    user_train_df, user_val_df = train_test_split(setting_user_df_chunk, test_size=0.2, shuffle=True)
+    macro_train_df, macro_val_df = train_test_split(setting_macro_df_chunk, test_size=0.2, shuffle=True)
 
     # ===== Sequence =====q
     user_train_seq, user_val_seq = points_to_features_scaled(

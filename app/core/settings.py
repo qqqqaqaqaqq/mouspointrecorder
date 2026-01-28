@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     
     JsonPath: str = "./"
     Recorder: str = "postgres"
+    threshold: float = 0.8
 
     class Config:
         env_file = ".env"

@@ -7,8 +7,11 @@ import time, os, sys
 
 import app.ui.train as train
 import app.ui.inferece as inference
-import app.core.globals as globals
 from app.ui.plot import plot_main
+
+import app.core.globals as globals
+
+
 import app.repostitories.DBController as DBController
 import app.repostitories.JsonController as JsonController
 from app.services.macroMouse import record_mouse_path
@@ -107,11 +110,16 @@ class MouseMacroUI(tk.Tk):
         self.stride_entry.grid(row=0, column=3, padx=(5,20))
         self.stride_entry.insert(0, str(globals.STRIDE))
 
-        tk.Button(seq_frame, text="적용", command=self.apply_seq_stride, bg="#4CBB17", fg="#FFFFFF", font=("Helvetica", 12, "bold")).grid(row=0, column=4, padx=(5,0))
+        tk.Label(seq_frame, text="threshold:", bg="#2A2B30", fg="#E0E0E0", font=("Helvetica", 12, "bold")).grid(row=0, column=4)
+        self.threshold_entry = tk.Entry(seq_frame, width=6, font=("Helvetica", 12))
+        self.threshold_entry.grid(row=0, column=5, padx=(5,20))
+        self.threshold_entry.insert(0, str(globals.threshold))
+
+        tk.Button(seq_frame, text="적용", command=self.apply_seq_stride, bg="#4CBB17", fg="#FFFFFF", font=("Helvetica", 12, "bold")).grid(row=0, column=6, padx=(5,0))
 
         self.toggle_btn = tk.Button(seq_frame, text=f"저장: {globals.Recorder}", command=self.toggle_record_path,
                                     bg="#FF6F61", fg="#FFFFFF", font=("Helvetica", 12, "bold"))
-        self.toggle_btn.grid(row=0, column=5, padx=(10,0))
+        self.toggle_btn.grid(row=0, column=7, padx=(10,0))
 
         # --- Plot Section ---
         plot_area = self.create_section(left_frame, "📊 Plot")
@@ -199,13 +207,15 @@ class MouseMacroUI(tk.Tk):
         try:
             seq_val = int(self.seq_entry.get())
             stride_val = int(self.stride_entry.get())
+            threshold_val = float(self.threshold_entry.get())
             if seq_val < 1 or stride_val < 1:
                 raise ValueError
 
             # globals 값 변경
             globals.SEQ_LEN = seq_val
             globals.STRIDE = stride_val
-            globals.LOG_QUEUE.put(f"[INFO] globals.SEQ_LEN = {globals.SEQ_LEN}, globals.STRIDE = {globals.STRIDE}")
+            globals.threshold = threshold_val
+            globals.LOG_QUEUE.put(f"[INFO] globals.SEQ_LEN = {globals.SEQ_LEN}, globals.STRIDE = {globals.STRIDE}, globals.threshold = {globals.threshold}")
 
             # env 파일 경로 (프로젝트 root 기준)
             env_path = ".env"
@@ -222,13 +232,14 @@ class MouseMacroUI(tk.Tk):
             # 값 변경
             env_dict["SEQ_LEN"] = str(seq_val)
             env_dict["STRIDE"] = str(stride_val)
+            env_dict["threshold"] = str(threshold_val)
 
             # 다시 쓰기
             with open(env_path, "w") as f:
                 for key, val in env_dict.items():
                     f.write(f"{key}={val}\n")
 
-            globals.LOG_QUEUE.put(f"[INFO] .env 파일 업데이트 완료: SEQ_LEN={seq_val}, STRIDE={stride_val}")
+            globals.LOG_QUEUE.put(f"[INFO] .env 파일 업데이트 완료: SEQ_LEN={seq_val}, STRIDE={stride_val}, threshold={threshold_val}")
 
         except ValueError:
             globals.LOG_QUEUE.put("[ERROR] 올바른 정수를 입력하세요")
