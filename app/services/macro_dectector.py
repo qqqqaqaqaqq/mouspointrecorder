@@ -43,6 +43,21 @@ class MacroDetector:
         self.prev_speed = 0.0
 
 
+    def compress_zero_sum_rows(self, df: pd.DataFrame, max_zeros=5):
+        df_compressed = []
+        zero_count = 0
+
+        for _, row in df.iterrows():
+            if row.sum() == 0:  # 행 전체 합이 0이면
+                zero_count += 1
+                if zero_count <= max_zeros:
+                    df_compressed.append(row)
+            else:
+                zero_count = 0
+                df_compressed.append(row)
+
+        return pd.DataFrame(df_compressed).reset_index(drop=True)
+
     def push(self, data:dict):
         self.buffer.append((data.get('x'), data.get('y'), data.get('timestamp'), data.get('event_type'), data.get('is_pressed')))
 
@@ -64,13 +79,16 @@ class MacroDetector:
         df = df.sort_values('timestamp').reset_index(drop=True)
 
         df = df[globals.FEACTURE].copy()
+
+ 
+        # ===== 0 압축 =====
+        df = self.compress_zero_sum_rows(df, max_zeros=1)
         
         # ===== Feature 필터 =====
         
-        X_infer, _ = points_to_features_scaled(train_df=df, seq_len=globals.SEQ_LEN, stride=globals.STRIDE)
+        X_infer, _, = points_to_features_scaled(df_chunk=df, seq_len=globals.SEQ_LEN, stride=globals.STRIDE)
 
-        
-        if X_infer.size == 0:  # 배열 비었으면 None 반환
+        if X_infer.size == 0:
             return None
 
         # 마지막 시퀀스만 사용

@@ -10,14 +10,13 @@ STRIDE = settings.STRIDE
 
 FEACTURE = [
     "speed",
-    "acc",
     "jerk",
     "turn",
     "turn_acc",
-    "event_down",
-    "event_up",
-    "is_pressed",
-    "press_duration"
+    "acc_change",
+    "jerk_change",
+    # "event_type",
+    # "event_up",
 ]
 
 MACRO_DETECTOR  = [] 
@@ -28,9 +27,11 @@ JsonPath = settings.JsonPath
 threshold = settings.threshold
 
 # model
-lstm_hidden_size=64
-lstm_layers=3
-dropout=0.3
+lstm_hidden_size=settings.lstm_hidden_size
+lstm_layers=settings.lstm_layers
+dropout=settings.dropout
+batch_size=settings.batch_size
+ir=settings.ir
 
 LOG_QUEUE = None
 

@@ -8,6 +8,8 @@ def indicators_generation(df_chunk: pd.DataFrame) -> pd.DataFrame:
     if not np.issubdtype(df["timestamp"].dtype, np.datetime64):
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
+    epsilon = 1e-6  # 0 나누기 방지
+
     # 시간 차 (초)
     df["timestamp"] = pd.to_datetime(df["timestamp"]) 
     df["dt"] = df["timestamp"].diff().dt.total_seconds()
@@ -29,11 +31,15 @@ def indicators_generation(df_chunk: pd.DataFrame) -> pd.DataFrame:
     # 가속도
     df["acc"] = df["speed"].diff()
     
+    df["acc_change"] = abs((df["acc"] - df["acc"].shift(1)) / (df["acc"].shift(1) + epsilon))
+
     # 로그 가속도 (부호 유지)
     df["acc_log"] = np.sign(df["acc"]) * np.log1p(np.abs(df["acc"]))
 
     # jerk (🔥 매우 중요)
     df["jerk"] = df["acc"].diff()
+
+    df["jerk_change"] = abs((df["jerk"] - df["jerk"].shift(1)) / (df["jerk"].shift(1) + epsilon))
 
     # 이동 각도
     df["angle"] = np.arctan2(df["dy"], df["dx"])
@@ -46,16 +52,7 @@ def indicators_generation(df_chunk: pd.DataFrame) -> pd.DataFrame:
 
     # 방향 가속도 (🔥 매크로 잘 잡힘)
     df["turn_acc"] = df["turn"].diff()
-
-    # 추가
-    df['speed_acc_ratio'] = df['acc'] / (df['speed']+1e-6)
-    df['jerk_std_5'] = df['jerk'].rolling(5).std().fillna(0)
-    df['turn_acc_std_5'] = df['turn_acc'].rolling(5).std().fillna(0)
-
-    # 방향 벡터
-    df["sin"] = np.sin(df["angle"])
-    df["cos"] = np.cos(df["angle"])
-
+    
     df["event_down"] = (df["event_type"] == 1).astype(int)
     df["event_up"]   = (df["event_type"] == 2).astype(int)
 

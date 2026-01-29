@@ -4,6 +4,7 @@ import threading
 from multiprocessing import Process, Event
 import keyboard
 import time, os, sys
+import random
 
 import app.ui.train as train
 import app.ui.inferece as inference
@@ -11,10 +12,10 @@ from app.ui.plot import plot_main
 
 import app.core.globals as globals
 
-
 import app.repostitories.DBController as DBController
 import app.repostitories.JsonController as JsonController
 from app.services.macroMouse import record_mouse_path
+from app.services.copyMove import copy_move
 import app.services.userMouse as useMouse
 
 def restart_program():
@@ -61,11 +62,10 @@ class MouseMacroUI(tk.Tk):
         except:
             pass
 
-        # 4. Tk 종료
         self.destroy()
         sys.exit(0)
 
-    def is_scrolled_to_bottom(self, tolerance=0.95):
+    def is_scrolled_to_bottom(self, tolerance=0.995):
         return self.macro_text.yview()[1] >= tolerance
 
     def process_log_queue(self):
@@ -120,18 +120,21 @@ class MouseMacroUI(tk.Tk):
         # --- Recording Section ---
         record_area = self.create_section(left_frame, "🎥 Recording (Exit Key: Ctrl + Shift + Q)")
         buttons_info = [
-            ("Mouse Record", lambda: self.start_record(record=True)),
-            # ("Macro Record Move False", lambda: self.start_macro_record_move_false(move=False, user_macro=True, record=True)),
-            ("User Macro Record", lambda: self.start_macro_record_move_false(move=False, user_macro=True, record=True)),            
-            ("Macro Record Move True", lambda: self.start_macro_record_move_true(move=True, record=True)),
-            ("Macro Move", lambda: self.start_macro_move(move=True, record=False)),      
+            ("Mouse Record", lambda: self.start_record(isUser=True, record=True)),
+            ("User Macro Record", lambda: self.start_record(isUser=False, record=True)),    
+            # ("Macro Record Move True", lambda: self.start_macro_record_move_true(move=True, record=True)),
+            # ("Macro Move", lambda: self.start_macro_move(move=True, record=False)),
+            ("Copy Move", lambda: self.start_copy_move(move=True)),
         ]
-        colors = ["#5C7AEA"]*5
+        colors = [
+            f"#{random.randint(0,255):02X}{random.randint(0,255):02X}{random.randint(0,255):02X}"
+            for _ in range(len(buttons_info))
+        ]
         for idx, (text, cmd) in enumerate(buttons_info):
             row, col = divmod(idx, 2)
             self.create_button(record_area, text, cmd, row, col, colors[idx])
 
-        # --- SEQ_LEN / STRIDE Section ---
+        # --- SEQ_LEN / STRIDE / threshold Section ---
         seq_frame = tk.Frame(left_frame, bg="#2A2B30", padx=10, pady=10)
         seq_frame.pack(fill="x", pady=15)
 
@@ -155,6 +158,37 @@ class MouseMacroUI(tk.Tk):
         self.toggle_btn = tk.Button(seq_frame, text=f"저장: {globals.Recorder}", command=self.toggle_record_path,
                                     bg="#FF6F61", fg="#FFFFFF", font=("Helvetica", 12, "bold"))
         self.toggle_btn.grid(row=0, column=7, padx=(10,0))
+
+        # --- LSTM / Training Parameters Section ---
+        lstm_frame = tk.Frame(left_frame, bg="#2A2B30", padx=10, pady=10)
+        lstm_frame.pack(fill="x", pady=15)
+
+        tk.Label(lstm_frame, text="LSTM Hidden Size:", bg="#2A2B30", fg="#E0E0E0", font=("Helvetica", 12, "bold")).grid(row=0, column=0)
+        self.lstm_hidden_entry = tk.Entry(lstm_frame, width=6, font=("Helvetica", 12))
+        self.lstm_hidden_entry.grid(row=0, column=1, padx=(5,20))
+        self.lstm_hidden_entry.insert(0, str(getattr(globals, "lstm_hidden_size", 128)))
+
+        tk.Label(lstm_frame, text="LSTM Layers:", bg="#2A2B30", fg="#E0E0E0", font=("Helvetica", 12, "bold")).grid(row=0, column=2)
+        self.lstm_layers_entry = tk.Entry(lstm_frame, width=6, font=("Helvetica", 12))
+        self.lstm_layers_entry.grid(row=0, column=3, padx=(5,20))
+        self.lstm_layers_entry.insert(0, str(getattr(globals, "lstm_layers", 2)))
+
+        tk.Label(lstm_frame, text="Dropout:", bg="#2A2B30", fg="#E0E0E0", font=("Helvetica", 12, "bold")).grid(row=0, column=4)
+        self.dropout_entry = tk.Entry(lstm_frame, width=6, font=("Helvetica", 12))
+        self.dropout_entry.grid(row=0, column=5, padx=(5,20))
+        self.dropout_entry.insert(0, str(getattr(globals, "dropout", 0.2)))
+
+        tk.Label(lstm_frame, text="Batch Size:", bg="#2A2B30", fg="#E0E0E0", font=("Helvetica", 12, "bold")).grid(row=1, column=0)
+        self.batch_size_entry = tk.Entry(lstm_frame, width=6, font=("Helvetica", 12))
+        self.batch_size_entry.grid(row=1, column=1, padx=(5,20))
+        self.batch_size_entry.insert(0, str(getattr(globals, "batch_size", 32)))
+
+        tk.Label(lstm_frame, text="IR:", bg="#2A2B30", fg="#E0E0E0", font=("Helvetica", 12, "bold")).grid(row=1, column=2)
+        self.ir_entry = tk.Entry(lstm_frame, width=6, font=("Helvetica", 12))
+        self.ir_entry.grid(row=1, column=3, padx=(5,20))
+        self.ir_entry.insert(0, str(getattr(globals, "ir", 0.001)))
+
+        tk.Button(lstm_frame, text="적용", command=self.apply_lstm_params, bg="#4CBB17", fg="#FFFFFF", font=("Helvetica", 12, "bold")).grid(row=1, column=6, padx=(5,0))
 
         # --- Plot Section ---
         plot_area = self.create_section(left_frame, "📊 Plot")
@@ -194,7 +228,6 @@ class MouseMacroUI(tk.Tk):
     # ===================== MouseMacroUI 클래스 안 =====================
 
     def toggle_record_path(self):
-        # RecordPath 토글
         if getattr(globals, "Recorder", "json") == "json":
             globals.Recorder = "postgres"
         else:
@@ -202,11 +235,9 @@ class MouseMacroUI(tk.Tk):
         
         globals.LOG_QUEUE.put(f"[INFO] 저장 타입 변경: {globals.Recorder}")
         
-        # 버튼 텍스트 업데이트
         if hasattr(self, "toggle_btn"):
             self.toggle_btn.config(text=f"저장: {globals.Recorder}")
 
-        # .env 업데이트
         env_path = ".env"
         env_dict = {}
         if os.path.exists(env_path):
@@ -235,16 +266,12 @@ class MouseMacroUI(tk.Tk):
             if seq_val < 1 or stride_val < 1:
                 raise ValueError
 
-            # globals 값 변경
             globals.SEQ_LEN = seq_val
             globals.STRIDE = stride_val
             globals.threshold = threshold_val
             globals.LOG_QUEUE.put(f"[INFO] globals.SEQ_LEN = {globals.SEQ_LEN}, globals.STRIDE = {globals.STRIDE}, globals.threshold = {globals.threshold}")
 
-            # env 파일 경로 (프로젝트 root 기준)
             env_path = ".env"
-
-            # 기존 env 읽기
             env_dict = {}
             if os.path.exists(env_path):
                 with open(env_path, "r") as f:
@@ -253,12 +280,10 @@ class MouseMacroUI(tk.Tk):
                             key, val = line.strip().split("=", 1)
                             env_dict[key] = val
 
-            # 값 변경
             env_dict["SEQ_LEN"] = str(seq_val)
             env_dict["STRIDE"] = str(stride_val)
             env_dict["threshold"] = str(threshold_val)
 
-            # 다시 쓰기
             with open(env_path, "w") as f:
                 for key, val in env_dict.items():
                     f.write(f"{key}={val}\n")
@@ -267,6 +292,46 @@ class MouseMacroUI(tk.Tk):
 
         except ValueError:
             globals.LOG_QUEUE.put("[ERROR] 올바른 정수를 입력하세요")
+
+    def apply_lstm_params(self):
+        try:
+            lstm_hidden = int(self.lstm_hidden_entry.get())
+            lstm_layers = int(self.lstm_layers_entry.get())
+            dropout = float(self.dropout_entry.get())
+            batch_size = int(self.batch_size_entry.get())
+            ir = float(self.ir_entry.get())
+
+            globals.lstm_hidden_size = lstm_hidden
+            globals.lstm_layers = lstm_layers
+            globals.dropout = dropout
+            globals.batch_size = batch_size
+            globals.ir = ir
+
+            globals.LOG_QUEUE.put(f"[INFO] LSTM Hidden Size={lstm_hidden}, Layers={lstm_layers}, Dropout={dropout}, Batch Size={batch_size}, IR={ir}")
+
+            env_path = ".env"
+            env_dict = {}
+            if os.path.exists(env_path):
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if "=" in line:
+                            key, val = line.strip().split("=", 1)
+                            env_dict[key] = val
+
+            env_dict["lstm_hidden_size"] = str(lstm_hidden)
+            env_dict["lstm_layers"] = str(lstm_layers)
+            env_dict["dropout"] = str(dropout)
+            env_dict["batch_size"] = str(batch_size)
+            env_dict["ir"] = str(ir)
+
+            with open(env_path, "w", encoding="utf-8") as f:
+                for key, val in env_dict.items():
+                    f.write(f"{key}={val}\n")
+
+            globals.LOG_QUEUE.put(f"[INFO] .env 파일 업데이트 완료 (LSTM 관련 파라미터)")
+
+        except ValueError:
+            globals.LOG_QUEUE.put("[ERROR] 올바른 숫자를 입력하세요 (정수/소수 확인)")
 
     # ================= Logic =================
     def make_plot_in_process(self, user=False):
@@ -285,8 +350,8 @@ class MouseMacroUI(tk.Tk):
             )
         p.start()
 
-    def start_macro_record_move_false(self, move=False, user_macro=False, record=True):
-        result = messagebox.askyesno("확인", "매크로 기록 무브=False 시작하시겠습니까?")
+    def start_macro_record_move_false(self, move=False, record=True):
+        result = messagebox.askyesno("확인", f"매크로 기록 무브={move} 시작하시겠습니까?")
         if result:
             self.stop_move_event.clear()
             p = Process(
@@ -295,7 +360,6 @@ class MouseMacroUI(tk.Tk):
                     "move_mouse": move, 
                     "log_queue": globals.LOG_QUEUE, 
                     "record": record, 
-                    "user_macro":user_macro, 
                     "stop_event": self.stop_move_event
                     },
                 daemon=True
@@ -303,7 +367,7 @@ class MouseMacroUI(tk.Tk):
             p.start()
 
     def start_macro_record_move_true(self, move=True, record=True):
-        result = messagebox.askyesno("확인", "매크로 기록 무브=True 시작하시겠습니까?")
+        result = messagebox.askyesno("확인", f"매크로 기록 무브={move} 시작하시겠습니까?")
         if result:
             self.stop_move_event.clear()            
             p = Process(
@@ -319,9 +383,9 @@ class MouseMacroUI(tk.Tk):
             p.start()
 
     def start_macro_move(self, move=True, record=False):
-        result = messagebox.askyesno("확인", "매크로 마우스 기록=False 무브=True 시작하시겠습니까?")
+        result = messagebox.askyesno("확인", f"매크로 마우스 기록={move} 무브={record} 시작하시겠습니까?")
         if result:
-            self.stop_move_event.clear()            
+            self.stop_move_event.clear()
             p = Process(
                 target=record_mouse_path, 
                 kwargs={
@@ -334,14 +398,29 @@ class MouseMacroUI(tk.Tk):
                 )
             p.start()
 
-    def start_record(self, record=False):
-        result = messagebox.askyesno("확인", "유저 마우스 기록=True 시작하시겠습니까?")
+    def start_copy_move(self, move=False):
+        result = messagebox.askyesno("확인", f"매크로  무브={move} 시작하시겠습니까?")
+        if result:
+            self.stop_move_event.clear()
+            p = Process(
+                target=copy_move, 
+                kwargs={
+                    "log_queue": globals.LOG_QUEUE,
+                    "stop_event": self.stop_move_event
+                    },
+                daemon=True
+                )
+            p.start()
+
+    def start_record(self, isUser, record=False):
+        result = messagebox.askyesno("확인", f"유저 마우스 기록={record} 시작하시겠습니까?")
         if result:
             self.stop_move_event.clear()            
             p = Process(
                 target=useMouse.record_mouse_path, 
                 kwargs={
                     "record": record, 
+                    "isUser":isUser,
                     "stop_event": self.stop_move_event,
                     "log_queue" : globals.LOG_QUEUE
                     },

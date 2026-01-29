@@ -27,11 +27,15 @@ class CnnDenseLstm(nn.Module):
         
         # Dense 분류기
         self.fc = nn.Sequential(
-            nn.Linear(lstm_hidden_size, 32),
+            nn.Linear(lstm_hidden_size, 128),
             nn.ReLU(),
-            nn.Linear(32, output_size)
+            nn.Dropout(dropout),  # Dense에 Dropout 추가
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, output_size)
         )
-        
+   
     def forward(self, x):
         # x: (batch, seq_len, feature) → CNN 입력용으로 (batch, feature, seq_len)
         x = x.permute(0, 2, 1)

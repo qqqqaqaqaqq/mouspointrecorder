@@ -3,6 +3,29 @@
 ## Model : DENSE +  LSTM + CNN module 복합 구조
 
 ---
+# Version 1.0.6 Update
+- 매크로 기록 time.sleep 내부 sleep 문제로 알고리즘 변경 
+  - 내부 sleep 대략 0.015sec정도 나오는데 기록기로는 생각보다 큼 
+  - tolerance = 0.00005로 변경 후 실제 기록 대략적으로 1/10 정도 축소 0.0015 ~ 0.00005
+- 마우스 method pynput 로 변경
+- 하이퍼 파라미터 UI단에서 변경 가능하도록 변경
+- indicator 일부 변경 => app.services.indicator과 globals에서 학습할 지표 수정
+- env 파일 추가내용
+  - lstm_hidden_size=128
+  - lstm_layers=3
+  - dropout=0.3
+  - batch_size=64
+  - ir=0.0003
+- Copy Move 추가
+  - 유저가 마우스 움직임을 통해 저장한 ./user/*.json 기록을 보간을 통해 최대한 비슷하게 경로를 추적함.
+  - 이를 통해 외부 기록기 프로그램으로 저장 후
+  - User Macro Reroder와 외부 기록기 프로그램을 동시에 작동하여 ./macro/*.json에 macro 파일 저장 가능
+  - 단 Copy Move를 곧바로 user Macro Recorder에 삽입 불가 프로세스 충돌
+- User Macro Recorder
+  - 저장된 매크로를 실행하여 User Macro에 기록시 좌표 값 저장
+- Macro Move 삭제 -> 사유 : 기록기 프로그램 이용
+
+
 # Version 1.0.5 Update
 - ~~매크로 마우스 포인터 변동 곡선 개선~~ 유저 매크로 또는 Move=True로 기록.
 - signal click 추가 app.core.globals에서 Feature 관리 할수 있습니다. 기본모드 전부 체크
@@ -101,7 +124,13 @@ Recorder=json<br>
 SEQ_LEN : 300<br>
 STRIDE : 100<br>
 
-threshold=0.7
+threshold=0.7<br>
+
+lstm_hidden_size=128<br>
+lstm_layers=3<br>
+dropout=0.3<br>
+batch_size=64<br>
+ir=0.0003<br>
 
 ## 실행
 python -m ui

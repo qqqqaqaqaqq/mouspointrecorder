@@ -1,4 +1,4 @@
-import pyautogui
+from pynput.mouse import Controller
 from pynput import mouse
 
 import time
@@ -11,6 +11,11 @@ from app.core.logger import add_macro_log
 
 def start_mouse_click_listener(stop_event):
     def on_click(x, y, button, pressed):
+        if globals.Recorder == "postgres":
+            record_timestamp = datetime.now()
+        elif globals.Recorder == "json":
+            record_timestamp = datetime.now().isoformat()      
+
         if stop_event.is_set():
             return False  # 리스너 종료
 
@@ -18,7 +23,7 @@ def start_mouse_click_listener(stop_event):
         globals.IS_PRESSED = 1 if pressed else 0
 
         data = {
-            'timestamp': datetime.now(),
+            'timestamp': record_timestamp,
             'x': int(x),
             'y': int(y),
             'event_type': event_type,
@@ -38,20 +43,35 @@ def main(stop_event, interval=0.005, log_queue:Queue=None):
         threshold=globals.threshold
     )
     log_queue.put("🟢 Macro Detector Running")
-
+    mouse = Controller()
     click_listener = start_mouse_click_listener(stop_event)
-
+    
+    tolerance = 0.00005
+    pre_timestamp = None
     while True:
         if stop_event.is_set():
             log_queue.put("🛑 Macro Detector Stopped")
             break
 
-        x, y = pyautogui.position()
-        globals.MOUSE_QUEUE.put({
-            'timestamp': datetime.now(),
-            'x': int(x), 'y': int(y),
-            'event_type': 0, 'is_pressed': globals.IS_PRESSED
-        })
+        x, y = mouse.position
+        timestamp = datetime.now().timestamp()
+        record_timestamp = datetime.now()
+
+        if pre_timestamp is not None:
+            if (timestamp - pre_timestamp) < tolerance:
+                continue 
+        
+        pre_timestamp = timestamp
+        
+        data = {
+            'timestamp': record_timestamp,
+            'x': int(x),
+            'y': int(y),
+            'event_type': 0,
+            'is_pressed': globals.IS_PRESSED
+        }
+                
+        globals.MOUSE_QUEUE.put(data)
 
         result = None 
         while not globals.MOUSE_QUEUE.empty():
@@ -63,8 +83,6 @@ def main(stop_event, interval=0.005, log_queue:Queue=None):
                 log_queue.put(f"🚨 MACRO | prob={result['prob']:.3f}")
             else:
                 log_queue.put(f"🙂 HUMAN | prob={result['prob']:.3f}")
-
-        time.sleep(interval)
 
     click_listener.stop()
 

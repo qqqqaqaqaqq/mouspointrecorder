@@ -5,6 +5,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import pandas as pd
 import traceback
+import time
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
@@ -26,10 +27,12 @@ save_path = "app/models/weights/mouse_macro_lstm_best.pt"
 
 
 # stride = > seq 데이터 겹치는 양 (How much each sequence shifts forward)
-def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ_LEN, val_df: pd.DataFrame = None, stride: int = globals.STRIDE, log_queue:Queue=None):
-
+def points_to_features_scaled(df_chunk: pd.DataFrame, seq_len: int = globals.SEQ_LEN, stride: int = globals.STRIDE, log_queue:Queue=None):
+    Total_Pass_SEQ = 0
+    
     # 시퀀스내의 스탭들이 모드 동일할 때 제거 => 움직임이 없을 경우 제외
     def df_to_seq(df: pd.DataFrame):
+        nonlocal Total_Pass_SEQ
         try:
             X = []
             n_rows = len(df)
@@ -37,29 +40,31 @@ def points_to_features_scaled(train_df: pd.DataFrame, seq_len: int = globals.SEQ
             for i in range(0, n_rows - seq_len + 1, stride):
                 seq = df.iloc[i:i + seq_len][globals.FEACTURE].values
 
-                if np.all(seq == 0):
+                if np.all(seq==0):
                     continue
-                
-                scalar = MinMaxScaler(feature_range=(-1,1))
+
+                scalar = StandardScaler()
                 seq_scalar = scalar.fit_transform(seq)
+
+                Total_Pass_SEQ += 1
                 X.append(seq_scalar)
 
             if len(X) == 0:
                 return np.empty((0, seq_len, len(globals.FEACTURE)), dtype=np.float32)
             return np.asarray(X, dtype=np.float32)
+        
         except Exception as e:
             log_queue.put("Error occurred in df_to_seq:")
             log_queue.put(e)                   
             traceback.print_exc()      
             return np.empty((0, seq_len, len(globals.FEACTURE)), dtype=np.float32)
 
-    X_train = df_to_seq(train_df)
-    X_val = df_to_seq(val_df) if val_df is not None else None
+    data = df_to_seq(df_chunk)
 
-    return X_train, X_val
+    return data, Total_Pass_SEQ
 
 # train
-def train_start(train_dataset, val_dataset, batch_size=32, epochs=100, lr=0.0005, device=None, model=None, stop_event=None, patience=20, log_queue:Queue=None):
+def train_start(train_dataset, val_dataset, batch_size=globals.batch_size, epochs=100, lr=globals.ir, device=None, model=None, stop_event=None, patience=20, log_queue:Queue=None):
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader   = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
@@ -68,6 +73,7 @@ def train_start(train_dataset, val_dataset, batch_size=32, epochs=100, lr=0.0005
 
     # oneclass
     # criterion = nn.MSELoss()
+    
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     best_val_loss = float('inf')
@@ -220,6 +226,23 @@ def train_start(train_dataset, val_dataset, batch_size=32, epochs=100, lr=0.0005
 #         log_queue=log_queue
 #     )
 
+
+
+def compress_zero_sum_rows(df: pd.DataFrame, max_zeros=5):
+    df_compressed = []
+    zero_count = 0
+
+    for _, row in df.iterrows():
+        if row.sum() == 0:  # 행 전체 합이 0이면
+            zero_count += 1
+            if zero_count <= max_zeros:
+                df_compressed.append(row)
+        else:
+            zero_count = 0
+            df_compressed.append(row)
+
+    return pd.DataFrame(df_compressed).reset_index(drop=True)
+
 # labeling
 def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None, log_queue:Queue=None):
     device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
@@ -289,12 +312,44 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None, log_queue:Queue=
     setting_user_df_chunk: pd.DataFrame = indicators_generation(user_df_chunk)
     setting_macro_df_chunk: pd.DataFrame = indicators_generation(macro_df_chunk)
     
+    # 문제 되는 int 값 인덱스
+    bad_idx = setting_user_df_chunk[
+        setting_user_df_chunk['timestamp'].apply(lambda x: isinstance(x, int))
+    ].index
+
+    for idx in bad_idx:
+        # -1 ~ +1 범위 행 출력 (주의: 범위 벗어나면 안전하게 처리)
+        start = max(idx - 1, 0)
+        end = min(idx + 1, len(setting_user_df_chunk) - 1)
+        print(f"\n문제 행 인덱스 {idx} 주변 행:")
+        print(setting_user_df_chunk.loc[start:end])
+
+
+    bad_idx = setting_macro_df_chunk[
+        setting_macro_df_chunk['timestamp'].apply(lambda x: isinstance(x, int))
+    ].index
+
+    for idx in bad_idx:
+        # -1 ~ +1 범위 행 출력 (주의: 범위 벗어나면 안전하게 처리)
+        start = max(idx - 1, 0)
+        end = min(idx + 1, len(setting_macro_df_chunk) - 1)
+        print(f"\n문제 행 인덱스 {idx} 주변 행:")
+        print(setting_macro_df_chunk.loc[start:end])
+
+
     setting_user_df_chunk = setting_user_df_chunk.sort_values('timestamp').reset_index(drop=True)
     setting_macro_df_chunk = setting_macro_df_chunk.sort_values('timestamp').reset_index(drop=True)
 
     # ===== Feature 필터 =====
     setting_user_df_chunk = setting_user_df_chunk[globals.FEACTURE].copy()
     setting_macro_df_chunk = setting_macro_df_chunk[globals.FEACTURE].copy()
+
+    # ===== 0 압축 =====
+    setting_user_df_chunk = compress_zero_sum_rows(setting_user_df_chunk, max_zeros=1)
+    setting_macro_df_chunk = compress_zero_sum_rows(setting_macro_df_chunk, max_zeros=1)
+
+    print(f"setting_user_df_chunk : {setting_user_df_chunk}")
+    print(f"setting_macro_df_chunk : {setting_macro_df_chunk}")
 
     if len(user_points) < seq_len or len(macro_points) < seq_len:
         log_queue.put("데이터가 충분하지 않습니다.")
@@ -310,22 +365,44 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None, log_queue:Queue=
     macro_train_df, macro_val_df = train_test_split(setting_macro_df_chunk, test_size=0.2, shuffle=False)
     
     # ===== Sequence =====q
-    user_train_seq, user_val_seq = points_to_features_scaled(
-        train_df=user_train_df, 
-        val_df=user_val_df, 
-        seq_len=globals.SEQ_LEN, 
-        stride=globals.STRIDE,
-        log_queue=log_queue
-        )
-    
-    macro_train_seq, macro_val_seq = points_to_features_scaled(
-        train_df=macro_train_df, 
-        val_df=macro_val_df, 
+    user_train_seq, user_train_pass_seq = points_to_features_scaled(
+        df_chunk=user_train_df, 
         seq_len=globals.SEQ_LEN, 
         stride=globals.STRIDE,
         log_queue=log_queue
         )
 
+    user_val_seq, user_val_pass_seq = points_to_features_scaled(
+        df_chunk=user_val_df, 
+        seq_len=globals.SEQ_LEN, 
+        stride=globals.STRIDE,
+        log_queue=log_queue
+        )
+
+    macro_train_seq, macro_train_pass_seq = points_to_features_scaled(
+        df_chunk=macro_train_df, 
+        seq_len=globals.SEQ_LEN, 
+        stride=globals.STRIDE,
+        log_queue=log_queue
+        )
+
+    macro_val_seq, macro_val_pass_seq = points_to_features_scaled(
+        df_chunk=macro_val_df, 
+        seq_len=globals.SEQ_LEN, 
+        stride=globals.STRIDE,
+        log_queue=log_queue
+        )
+
+    traindata_length = min(user_train_pass_seq, macro_train_pass_seq)
+    valdata_length = min(user_val_pass_seq, macro_val_pass_seq)
+
+    user_train_seq = user_train_seq[:traindata_length]
+    user_val_seq = user_val_seq[:valdata_length]
+    macro_train_seq = macro_train_seq[:traindata_length]
+    macro_val_seq = macro_val_seq[:valdata_length]
+    
+    log_queue.put(f"Length => train data : {traindata_length}, val data : {valdata_length}")
+    
     if len(user_train_seq) == 0 or len(user_val_seq) == 0:
         log_queue.put("시퀀스 길이가 충분하지 않아 학습 불가")
         return
@@ -357,6 +434,10 @@ def main(stop_event=None, seq_len=globals.SEQ_LEN, device=None, log_queue:Queue=
         dropout=globals.dropout
     ).to(device)
 
+    if stop_event and stop_event.is_set():
+        log_queue.put("학습 중지 완료")
+        return
+    
     # ===== 학습 시작 =====
     train_start(
         train_dataset=train_dataset,
