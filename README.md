@@ -9,17 +9,17 @@
 - 로그창 업데이트 (드래그 휠 문제 수정)
 - 종료 버그 수정
 - 매크로 무브 관련 사항
- - 매크로 Move=False => time interval이 너무 짧아 문제 생김
- - 유저 전용 매크로 또는 다른 기록기 프로그램을 이용하여 User Macro Record 클릭 후 기록하는편이 성능에는 더 좋습니다.
- - 또는 매크로 무브를 따로 app.services.macroMouse.py를 수정하시고 기록하는 편이 좋습니다.
+  - 매크로 Move=False => time interval이 너무 짧아 문제 생김
+  - 유저 전용 매크로 또는 다른 기록기 프로그램을 이용하여 User Macro Record 클릭 후 기록하는편이 성능에는 더 좋습니다.
+  - 또는 매크로 무브를 따로 app.services.macroMouse.py를 수정하시고 기록하는 편이 좋습니다.
 - app.core.globals에서 파라미터 수정가능
- - dropout : lSTM 학습 중 일부 뉴런을 무작위로 제거할 확률
-  - 과적합 방지
-  - 0.0 → 드롭 없음
-  - 0.3 → 30% 뉴런을 학습 중 무시 → 일반적으로 안정적
-  - 0.5 이상 → 학습 불안정 가능
- - lstm_hidden_size : lstm이 기억할 수 있는 정보량
- - lstm_layers : lstm이 몇 번 깊이 있는 계산을 할지
+  - dropout : lSTM 학습 중 일부 뉴런을 무작위로 제거할 확률
+    - 과적합 방지
+    - 0.0 → 드롭 없음
+    - 0.3 → 30% 뉴런을 학습 중 무시 → 일반적으로 안정적
+    - 0.5 이상 → 학습 불안정 가능
+  - lstm_hidden_size : lstm이 기억할 수 있는 정보량
+  - lstm_layers : lstm이 몇 번 깊이 있는 계산을 할지
 
 # Version 1.0.4 Update
 - 매크로 마우스 포인터 변동 곡선 개선
