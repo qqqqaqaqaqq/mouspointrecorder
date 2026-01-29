@@ -9,7 +9,6 @@ SEQ_LEN = settings.SEQ_LEN
 STRIDE = settings.STRIDE
 
 FEACTURE = [
-    "dist",
     "speed",
     "acc",
     "jerk",
@@ -28,14 +27,12 @@ JsonPath = settings.JsonPath
 
 threshold = settings.threshold
 
-
 # model
-lstm_hidden_size=32
-lstm_layers=2
-dropout=0.4
+lstm_hidden_size=64
+lstm_layers=3
+dropout=0.3
 
 LOG_QUEUE = None
-
 
 def init_manager():
     global LOG_QUEUE

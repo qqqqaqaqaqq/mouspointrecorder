@@ -28,7 +28,7 @@ def indicators_generation(df_chunk: pd.DataFrame) -> pd.DataFrame:
 
     # 가속도
     df["acc"] = df["speed"].diff()
-
+    
     # 로그 가속도 (부호 유지)
     df["acc_log"] = np.sign(df["acc"]) * np.log1p(np.abs(df["acc"]))
 
@@ -46,6 +46,11 @@ def indicators_generation(df_chunk: pd.DataFrame) -> pd.DataFrame:
 
     # 방향 가속도 (🔥 매크로 잘 잡힘)
     df["turn_acc"] = df["turn"].diff()
+
+    # 추가
+    df['speed_acc_ratio'] = df['acc'] / (df['speed']+1e-6)
+    df['jerk_std_5'] = df['jerk'].rolling(5).std().fillna(0)
+    df['turn_acc_std_5'] = df['turn_acc'].rolling(5).std().fillna(0)
 
     # 방향 벡터
     df["sin"] = np.sin(df["angle"])

@@ -16,7 +16,6 @@ import app.repostitories.DBController as DBController
 import app.repostitories.JsonController as JsonController
 from app.services.macroMouse import record_mouse_path
 import app.services.userMouse as useMouse
-from app.core.logger import add_macro_log
 
 def restart_program():
     response = messagebox.askyesno("재시작 알림", "프로그램을 재시작합니다.")
@@ -36,15 +35,51 @@ class MouseMacroUI(tk.Tk):
         self.stop_inference_event = threading.Event()
         self.stop_move_event = Event()
         keyboard.add_hotkey('ctrl+shift+q', lambda: self.stop_move_event.set())    
-        self.init_ui()
-        
-        self.after(100, self.process_macro_logs)
 
-    def process_macro_logs(self):
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.init_ui()
+        self.after(50, self.process_log_queue)
+
+    def on_close(self):
+        try:
+            self.stop_move_event.set()
+            self.stop_train.set()
+            self.stop_inference_event.set()
+        except:
+            pass
+
+        try:
+            keyboard.unhook_all()
+        except:
+            pass
+
+        try:
+            import multiprocessing
+            for p in multiprocessing.active_children():
+                p.terminate()
+                p.join(timeout=1)
+        except:
+            pass
+
+        # 4. Tk 종료
+        self.destroy()
+        sys.exit(0)
+
+    def is_scrolled_to_bottom(self, tolerance=0.95):
+        return self.macro_text.yview()[1] >= tolerance
+
+    def process_log_queue(self):
+        auto_scroll = self.is_scrolled_to_bottom()
+
         while not globals.LOG_QUEUE.empty():
-            add_macro_log(globals.LOG_QUEUE.get())
-        self.after(100, self.process_macro_logs)
-        
+            msg = globals.LOG_QUEUE.get()
+            self.macro_text.insert(tk.END, msg + "\n")
+
+        if auto_scroll:
+            self.macro_text.see(tk.END)
+
+        self.after(50, self.process_log_queue)
+
     # ================= UI Helpers =================
     def create_section(self, parent, title, bg="#2A2B30", fg="#E0E0E0"):
         frame = tk.Frame(parent, bg=bg, padx=15, pady=15, bd=0, relief="flat")
@@ -86,7 +121,7 @@ class MouseMacroUI(tk.Tk):
         record_area = self.create_section(left_frame, "🎥 Recording (Exit Key: Ctrl + Shift + Q)")
         buttons_info = [
             ("Mouse Record", lambda: self.start_record(record=True)),
-            ("Macro Record Move False", lambda: self.start_macro_record_move_false(move=False, user_macro=True, record=True)),
+            # ("Macro Record Move False", lambda: self.start_macro_record_move_false(move=False, user_macro=True, record=True)),
             ("User Macro Record", lambda: self.start_macro_record_move_false(move=False, user_macro=True, record=True)),            
             ("Macro Record Move True", lambda: self.start_macro_record_move_true(move=True, record=True)),
             ("Macro Move", lambda: self.start_macro_move(move=True, record=False)),      
@@ -152,21 +187,10 @@ class MouseMacroUI(tk.Tk):
         self.macro_text.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.macro_text.yview)
 
-        self.update_macro_detector()
-
-        footer = tk.Label(self, text="v1.0.3 - Mouse Macro Tool, Created by qqqa", font=("Helvetica", 10, "italic"),
+        footer = tk.Label(self, text="v1.0.5 - Mouse Macro Tool, Created by qqqa", font=("Helvetica", 10, "italic"),
                           bg="#1F2024", fg="#A0A0A0")
         footer.pack(side="bottom", pady=10)
 
-
-    # ===================== MACRO_DETECTOR 업데이트 =====================
-    def update_macro_detector(self):
-        self.macro_text.delete("1.0", tk.END)
-        for line in globals.MACRO_DETECTOR:
-            self.macro_text.insert(tk.END, f"{line}\n")
-        self.macro_text.see(tk.END)
-        self.after(200, self.update_macro_detector)
-    
     # ===================== MouseMacroUI 클래스 안 =====================
 
     def toggle_record_path(self):
@@ -256,7 +280,8 @@ class MouseMacroUI(tk.Tk):
             kwargs={
                 "points" : points,
                 "log_queue": globals.LOG_QUEUE, 
-                }
+                },
+            daemon=True                
             )
         p.start()
 
@@ -272,7 +297,8 @@ class MouseMacroUI(tk.Tk):
                     "record": record, 
                     "user_macro":user_macro, 
                     "stop_event": self.stop_move_event
-                    }
+                    },
+                daemon=True
                 )
             p.start()
 
@@ -287,7 +313,8 @@ class MouseMacroUI(tk.Tk):
                     "log_queue": globals.LOG_QUEUE, 
                     "record": record, 
                     "stop_event": self.stop_move_event
-                    }
+                    },
+                daemon=True
                 )
             p.start()
 
@@ -302,7 +329,8 @@ class MouseMacroUI(tk.Tk):
                     "log_queue": globals.LOG_QUEUE, 
                     "record": record, 
                     "stop_event": self.stop_move_event
-                    }
+                    },
+                daemon=True
                 )
             p.start()
 
@@ -316,7 +344,8 @@ class MouseMacroUI(tk.Tk):
                     "record": record, 
                     "stop_event": self.stop_move_event,
                     "log_queue" : globals.LOG_QUEUE
-                    }
+                    },
+                daemon=True
                 )
             p.start()
 
@@ -341,6 +370,7 @@ class MouseMacroUI(tk.Tk):
                 target=inference.main,
                 kwargs={
                     "stop_event" : self.stop_inference_event,
+                    "log_queue" : globals.LOG_QUEUE
                 },
                 daemon=True
             ).start()

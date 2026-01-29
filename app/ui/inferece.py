@@ -4,6 +4,7 @@ from pynput import mouse
 import time
 import app.core.globals as globals
 from datetime import datetime
+from multiprocessing import Queue
 
 from app.services.macro_dectector import MacroDetector
 from app.core.logger import add_macro_log
@@ -30,19 +31,19 @@ def start_mouse_click_listener(stop_event):
     listener.start()
     return listener
 
-def main(stop_event):
+def main(stop_event, interval=0.005, log_queue:Queue=None):
     detector = MacroDetector(
         model_path="app/models/weights/mouse_macro_lstm_best.pt",
         seq_len=globals.SEQ_LEN,
         threshold=globals.threshold
     )
-    add_macro_log("🟢 Macro Detector Running")
+    log_queue.put("🟢 Macro Detector Running")
 
     click_listener = start_mouse_click_listener(stop_event)
 
     while True:
         if stop_event.is_set():
-            add_macro_log("🛑 Macro Detector Stopped")
+            log_queue.put("🛑 Macro Detector Stopped")
             break
 
         x, y = pyautogui.position()
@@ -59,11 +60,11 @@ def main(stop_event):
 
         if result:
             if result["is_macro"]:
-                add_macro_log(f"🚨 MACRO | prob={result['prob']:.3f}")
+                log_queue.put(f"🚨 MACRO | prob={result['prob']:.3f}")
             else:
-                add_macro_log(f"🙂 HUMAN | prob={result['prob']:.3f}")
+                log_queue.put(f"🙂 HUMAN | prob={result['prob']:.3f}")
 
-        time.sleep(0.01)
+        time.sleep(interval)
 
     click_listener.stop()
 

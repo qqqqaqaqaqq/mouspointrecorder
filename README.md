@@ -3,20 +3,31 @@
 ## Model : DENSE +  LSTM + CNN module 복합 구조
 
 ---
+# Version 1.0.5 Update
+- ~~매크로 마우스 포인터 변동 곡선 개선~~ 유저 매크로 또는 Move=True로 기록.
+- signal click 추가 app.core.globals에서 Feature 관리 할수 있습니다. 기본모드 전부 체크
+- 로그창 업데이트 (드래그 휠 문제 수정)
+- 종료 버그 수정
+- 매크로 무브 관련 사항
+ - 매크로 Move=False => time interval이 너무 짧아 문제 생김
+ - 유저 전용 매크로 또는 다른 기록기 프로그램을 이용하여 User Macro Record를 기록하는편이 성능에는 더 좋습니다.
+- app.core.globals에서 파라미터 수정가능
+ - dropout : lSTM 학습 중 일부 뉴런을 무작위로 제거할 확률
+  - 과적합 방지
+  - 0.0 → 드롭 없음
+  - 0.3 → 30% 뉴런을 학습 중 무시 → 일반적으로 안정적
+  - 0.5 이상 → 학습 불안정 가능
+ - lstm_hidden_size : lstm이 기억할 수 있는 정보량
+ - lstm_layers : lstm이 몇 번 깊이 있는 계산을 할지
+
 # Version 1.0.4 Update
 - 매크로 마우스 포인터 변동 곡선 개선
 - signal click 추가
 - plot 개선
 - threshold 추가 human/macro 판단 기준
 - [필수파일 env](#threshold)
-- q 소비 알고리즘 추가 8만개 이상 초과시 좌표 이동 문제 해결
-- Model 하이퍼 파라미터 수정 
-  - dropout = 0.4, 
-  - lstm_hidden_size=32,
-  - lstm_layer=2
-- 데이터 전처리 수정 train val shuffle
-  - shuffle=True
-
+- q 소비 알고리즘 추가
+  
 # Version 1.0.3 Update
 - 마우스 포인터 기록 이어쓰기로 변경
 - print -> log 창으로 이동

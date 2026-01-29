@@ -3,7 +3,7 @@ import torch
 from collections import deque
 from datetime import datetime
 
-from app.models.CnnDenseLstm import CnnDenseLstm
+from app.models.CnnDenseLstm import CnnDenseLstm, CnnDenseLstmOneClass
 
 from app.ui.train import points_to_features_scaled
 
@@ -18,12 +18,21 @@ class MacroDetector:
         self.threshold = threshold
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         # ===== 모델 초기화 =====
+        # labeling
         self.model = CnnDenseLstm(
             input_size=len(globals.FEACTURE), 
             lstm_hidden_size=globals.lstm_hidden_size, 
             lstm_layers=globals.lstm_layers, 
             dropout=globals.dropout
         )
+
+        # oneclass
+        # self.model = CnnDenseLstmOneClass(
+        #     input_size=len(globals.FEACTURE), 
+        #     lstm_hidden_size=globals.lstm_hidden_size, 
+        #     lstm_layers=globals.lstm_layers, 
+        #     dropout=globals.dropout
+        # )
 
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.model.to(self.device)
@@ -67,9 +76,17 @@ class MacroDetector:
         # 마지막 시퀀스만 사용
         X_tensor = torch.tensor(X_infer[-1], dtype=torch.float32).unsqueeze(0).to(self.device)
 
+
+        # labeling
         with torch.no_grad():
             pred = self.model(X_tensor)
             prob = torch.sigmoid(pred).squeeze().item()  # 0~1
+
+        # oneclass
+        # with torch.no_grad():
+        #     pred = self.model(X_tensor)  # (1, seq_len, feature)
+        #     recon_error = torch.mean((pred - X_tensor)**2)  # 스칼라
+        #     prob = torch.sigmoid(-recon_error)  # 값이 0~1, 작을수록 정상
 
         return {"is_macro": prob < self.threshold, "prob": prob}
 

@@ -49,7 +49,7 @@ def record_mouse_path(stop_event = None, record=True, interval=0.005, log_queue:
     globals.IS_PRESSED = 0
 
     log_queue.put("[Process] 마우스 경로 생성 시작")
-
+    i = 0
     click_listener = start_mouse_click_listener(stop_event)
 
     while not stop_event.is_set():
@@ -68,7 +68,8 @@ def record_mouse_path(stop_event = None, record=True, interval=0.005, log_queue:
             globals.MOUSE_QUEUE.put(data)
 
         if globals.MOUSE_QUEUE.qsize() >= globals.MAX_QUEUE_SIZE:
-            log_queue.put("Data 5000개 초과.. 저장 중..")
+            log_queue.put(f"Data 5000개 초과.. 누적 {5000 * i}")
+            i += 1
             # isUser => True
             cunsume_q(record=record, isUser=True, log_queue=log_queue)
             log_queue.put("저장 완료 다음 시퀀스 준비")
